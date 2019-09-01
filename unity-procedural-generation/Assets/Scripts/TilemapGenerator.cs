@@ -9,6 +9,8 @@ public class TilemapGenerator : MonoBehaviour
     // Parameters
     public Tilemap Floor;
     public TileBase FloorTile;
+    public int Width;
+    public int Height;
     // Private members
     private PerlinNoise perlinNoise;
     private const float waterLevel = 0;
@@ -16,8 +18,7 @@ public class TilemapGenerator : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        Vector3Int size = Floor.cellBounds.size;
-        perlinNoise = new PerlinNoise(size.x, size.y);
+        perlinNoise = new PerlinNoise(Width, Height);
         Generate();
     }
 
@@ -31,17 +32,15 @@ public class TilemapGenerator : MonoBehaviour
     {
         Vector3Int size = Floor.cellBounds.size;
         Vector3Int min = Floor.cellBounds.min;
-        int width = size.x;
-        int height = size.y;
         int smoothness = Random.Range(2, 3);
         int z;
         Vector3Int tile = new Vector3Int();
         Color color;
-        Color oldColor;
-        for (int x = 0; x < width; ++x)
+            Color oldColor;
+        for (int x = 0; x < Width; ++x)
         {
             tile.x = min.x + x;
-            for (int y = 0; y < height; ++y)
+            for (int y = 0; y < Height; ++y)
             {
                 tile.y = min.y + y;
                 z = (int)Mathf.Round(perlinNoise.Perlin((float)x / smoothness, (float)y / smoothness) * 10);
