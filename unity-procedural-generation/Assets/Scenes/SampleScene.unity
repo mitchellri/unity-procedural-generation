@@ -275,8 +275,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Floor: {fileID: 516116403}
   FloorTile: {fileID: 11400000, guid: a99e574493fe4544ab680ec394d6a21d, type: 2}
-  Width: 100
-  Height: 100
+  WaterTile: {fileID: 11400000, guid: 1763a25001b91bd4eb25dac9ff762d1f, type: 2}
+  SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
+  Width: 250
+  Height: 250
+  MinimumSmoothness: 30
+  MaximumSmoothness: 40
+  WaterLevel: -1
+  SnowLevel: 1
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -366,7 +372,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 519420028}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -1.5, y: 1.5, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}

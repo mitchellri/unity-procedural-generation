@@ -52,7 +52,13 @@ public class TilemapGenerator : MonoBehaviour
             for (int y = 0; y < Height; ++y)
             {
                 tile.y = min.y + y;
-                z = (int)Mathf.Round(perlinNoise.Perlin((float)x / smoothness, (float)y / smoothness) * 10);
+                z = (int)Mathf.Round(
+                    perlinNoise.FractionalBrownianMotion(
+                        x, y,
+                        frequency: (float)1/smoothness,
+                        lacunarity: 2,
+                        amplitude: 1
+                    ) * 10);
                 tile.z = min.z + z;
                 if (!Floor.HasTile(tile))
                 {
@@ -67,7 +73,7 @@ public class TilemapGenerator : MonoBehaviour
                     color.r -= colorIncrement * (z - SnowLevel);
                     color.g -= colorIncrement * (z - SnowLevel);
                 }
-                else if (z < WaterLevel) color.g += colorIncrement * z;
+                else if (z < WaterLevel) color.g += colorIncrement * (z - WaterLevel);
                 else color.g += colorIncrement * z;
                 Floor.SetColor(tile, color);
             }

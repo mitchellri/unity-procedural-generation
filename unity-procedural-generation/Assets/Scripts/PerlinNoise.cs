@@ -63,7 +63,7 @@ public class PerlinNoise
         float dy = y - (float)iy;
 
         // Compute the dot-product
-        return (dx * gradientArray[ix, iy].x + dy * gradientArray[ix, iy].y);
+        return (dx * gradientArray[ix % gradientArray.GetLength(0), iy % gradientArray.GetLength(1)].x + dy * gradientArray[ix % gradientArray.GetLength(0), iy % gradientArray.GetLength(1)].y);
     }
     public float Perlin(float x, float y)
     {
@@ -80,7 +80,6 @@ public class PerlinNoise
 
         // Interpolate between grid point gradients
         float n0, n1, ix0, ix1, value;
-
         n0 = dotArrayGradient(x0, y0, x, y);
         n1 = dotArrayGradient(x1, y0, x, y);
         ix0 = lerp(n0, n1, sx);
@@ -91,10 +90,8 @@ public class PerlinNoise
         value = lerp(ix0, ix1, sy);
         return value;
     }
-    public float FractionalBrownianMotion(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5)
+    public float FractionalBrownianMotion(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
-        float amplitude = 1;
-        float frequency = 1;
         float sum = 0;
         for (int i = 0; i < octaves; ++i)
         {
