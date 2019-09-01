@@ -9,12 +9,17 @@ public class TilemapGenerator : MonoBehaviour
     // Parameters
     public Tilemap Floor;
     public TileBase FloorTile;
+    public TileBase WaterTile;
+    public TileBase SnowTile;
     public int Width;
     public int Height;
+    public int MinimumSmoothness;
+    public int MaximumSmoothness;
+    public int WaterLevel;
+    public int SnowLevel;
     // Private members
     private PerlinNoise perlinNoise;
-    private const float waterLevel = 0;
-    private static readonly int colorIncrement = 1;
+    private static readonly float colorIncrement = 0.1f;
     // Start is called before the first frame update
     void Start()
     {
@@ -25,18 +30,22 @@ public class TilemapGenerator : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-
+        // Not generating anything new
+        if (Input.GetKey(KeyCode.Space))
+        {
+            perlinNoise.ResetGradientArray();
+            Floor.ClearAllTiles();
+            Generate();
+        }
     }
 
     public void GenerateTerrain()
     {
-        Vector3Int size = Floor.cellBounds.size;
         Vector3Int min = Floor.cellBounds.min;
-        int smoothness = Random.Range(2, 3);
+        int smoothness = Random.Range(MinimumSmoothness, MaximumSmoothness);
         int z;
         Vector3Int tile = new Vector3Int();
         Color color;
-            Color oldColor;
         for (int x = 0; x < Width; ++x)
         {
             tile.x = min.x + x;
@@ -45,13 +54,22 @@ public class TilemapGenerator : MonoBehaviour
                 tile.y = min.y + y;
                 z = (int)Mathf.Round(perlinNoise.Perlin((float)x / smoothness, (float)y / smoothness) * 10);
                 tile.z = min.z + z;
-                Floor.SetTile(tile, FloorTile);
-                Floor.SetTileFlags(tile, TileFlags.None);
+                if (!Floor.HasTile(tile))
+                {
+                    if (z < WaterLevel) Floor.SetTile(tile, WaterTile);
+                    else if (z > SnowLevel) Floor.SetTile(tile, SnowTile);
+                    else Floor.SetTile(tile, FloorTile);
+                    Floor.SetTileFlags(tile, TileFlags.None);
+                }
                 color = Floor.GetColor(tile);
-                    oldColor = Floor.GetColor(tile);
-                color.g += colorIncrement*z;
-                Debug.Log("Color Diff:" + (color-oldColor));
-                Floor.SetColor(tile,color);
+                if (z > SnowLevel)
+                {
+                    color.r -= colorIncrement * (z - SnowLevel);
+                    color.g -= colorIncrement * (z - SnowLevel);
+                }
+                else if (z < WaterLevel) color.g += colorIncrement * z;
+                else color.g += colorIncrement * z;
+                Floor.SetColor(tile, color);
             }
         }
         return;

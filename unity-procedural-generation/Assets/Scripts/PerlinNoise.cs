@@ -38,6 +38,13 @@ public class PerlinNoise
                 gradientArray[i, j] = getGradientVector();
         return gradientArray;
     }
+    public void ResetGradientArray()
+    {
+        for (int i = 0; i < gradientArray.GetLength(0); ++i)
+            for (int j = 0; j < gradientArray.GetLength(1); ++j)
+                gradientArray[i, j] = getGradientVector();
+        return;
+    }
     /* Function to linearly interpolate between a0 and a1
      * Weight w should be in the range [0.0, 1.0]
      *
