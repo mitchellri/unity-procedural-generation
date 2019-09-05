@@ -1,8 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-// Added
-using UnityEngine.Tilemaps;
+﻿using UnityEngine;
 
 public class PerlinNoise
 {
@@ -10,18 +6,18 @@ public class PerlinNoise
     private static readonly int gradientRange = 100;
     private Vector3[,] gradientArray;
 
-    public PerlinNoise(int width, int height)
+    public PerlinNoise(int width, int length)
     {
-        initialize(width, height);
+        initialize(width, length);
     }
-    public PerlinNoise(int width, int height, int seed)
+    public PerlinNoise(int width, int length, int seed)
     {
         Random.InitState(seed);
-        initialize(width, height);
+        initialize(width, length);
     }
-    private void initialize(int width, int height)
+    private void initialize(int width, int length)
     {
-        gradientArray = getGradientArray(width, height);
+        gradientArray = getGradientArray(width, length);
     }
     static private Vector2 getGradientVector()
     {
@@ -30,11 +26,11 @@ public class PerlinNoise
             Random.Range(-gradientRange, gradientRange))
             / gradientRange;
     }
-    static private Vector3[,] getGradientArray(int width, int height)
+    static private Vector3[,] getGradientArray(int width, int length)
     {
-        Vector3[,] gradientArray = new Vector3[width, height];
+        Vector3[,] gradientArray = new Vector3[width, length];
         for (int i = 0; i < width; ++i)
-            for (int j = 0; j < height; ++j)
+            for (int j = 0; j < length; ++j)
                 gradientArray[i, j] = getGradientVector();
         return gradientArray;
     }
