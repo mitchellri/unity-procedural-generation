@@ -4,6 +4,7 @@ using UnityEngine.Tilemaps;
 using System.Collections.Generic;
 using Dijkstra.NET.Graph;
 using Dijkstra.NET.ShortestPath;
+using System.Linq;
 
 public class TilemapGenerator : MonoBehaviour
 {
@@ -42,6 +43,39 @@ public class TilemapGenerator : MonoBehaviour
             perlinNoise.ResetGradientArray();
             Floor.ClearAllTiles();
             Generate();
+        }
+    }
+
+    private void setTile(Tilemap tileMap, Vector3Int vector, TileBase tile = null, bool colorTile = true)
+    {
+        int x = vector.x,
+            y = vector.y,
+            z = vector.z;
+
+        // Dynamic tile choice
+        if (tile == null)
+        {
+            if (z <= WaterLevel) tile = WaterTile;
+            else if (z >= SnowLevel) tile = SnowTile;
+            else tile = FloorTile;
+        }
+
+        // Place tile
+        tileMap.SetTile(vector, tile);
+        tileMap.SetTileFlags(vector, TileFlags.None);
+
+        // Adjust color
+        if (colorTile)
+        {
+            Color color = tileMap.GetColor(vector);
+            if (tile == SnowTile)
+            {
+                color.r -= colorIncrement * (z - SnowLevel);
+                color.g -= colorIncrement * (z - SnowLevel);
+            }
+            else if (tile == WaterTile) color.g += colorIncrement * (z - WaterLevel);
+            else color.g += colorIncrement * z;
+            tileMap.SetColor(vector, color);
         }
     }
 
@@ -85,19 +119,7 @@ public class TilemapGenerator : MonoBehaviour
                 index.Set(x, y, z);
                 idGrid[x, y] = pathFinding.AddNode(index);
                 tile.z = min.z + z;
-                if (z < WaterLevel) Floor.SetTile(tile, WaterTile);
-                else if (z > SnowLevel) Floor.SetTile(tile, SnowTile);
-                else Floor.SetTile(tile, FloorTile);
-                Floor.SetTileFlags(tile, TileFlags.None);
-                color = Floor.GetColor(tile);
-                if (z > SnowLevel)
-                {
-                    color.r -= colorIncrement * (z - SnowLevel);
-                    color.g -= colorIncrement * (z - SnowLevel);
-                }
-                else if (z < WaterLevel) color.g += colorIncrement * (z - WaterLevel);
-                else color.g += colorIncrement * z;
-                Floor.SetColor(tile, color);
+                setTile(Floor, index);
             }
         }
         createNetwork(idGrid);
@@ -107,7 +129,7 @@ public class TilemapGenerator : MonoBehaviour
     {
         return movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x);
     }
-    
+
     private void removeParents(uint id)
     {
         foreach (var parent in pathFinding.Parents(id))
@@ -158,46 +180,79 @@ public class TilemapGenerator : MonoBehaviour
         // Find travel nodes
         List<uint> SnowList = new List<uint>(),
             WaterList = new List<uint>();
-        var nodes =  pathFinding.GetEnumerator();
+        var nodes = pathFinding.GetEnumerator();
         while (nodes.MoveNext())
         {
-            if (nodes.Current.Item.z > SnowLevel) SnowList.Add(nodes.Current.Key);
-            if (nodes.Current.Item.z == WaterLevel - 1) WaterList.Add(nodes.Current.Key);
+            if (nodes.Current.Item.z == WaterLevel)
+            {
+                foreach (uint pId in pathFinding.Parents(nodes.Current.Key))
+                {
+                    if (pathFinding[pId].Item.z == WaterLevel + 1)
+                    {
+                        WaterList.Add(nodes.Current.Key);
+                        break;
+                    }
+                }
+            }
+            // Any snow
+            else if (nodes.Current.Item.z == SnowLevel) SnowList.Add(nodes.Current.Key);
+            // Edges of snow
+            // No edges moving upward, so no parents in lower z-axis
+            /*else if (nodes.Current.Item.z == SnowLevel - 1)
+            {
+                foreach (uint pId in pathFinding.Parents(nodes.Current.Key))
+                {
+                    // One parent can have several children
+                    if (pathFinding[pId].Item.z == SnowLevel && !SnowList.Contains(pId))
+                    {
+                        SnowList.Add(nodes.Current.Key);
+                        break;
+                    }
+                }
+            }*/
         }
 
-        Color color;
-        uint source, destination;
-        Vector3Int currentVector, lastVector = new Vector3Int(-1,-1,-1), placementVector = new Vector3Int();
-        int randomWaterIndex, randomSnowIndex;
+        uint source, destination = uint.MaxValue;
+        Vector3Int currentVector, lastVector = new Vector3Int(-1, -1, -1);
+        int randomSnowIndex;
         Dictionary<uint, bool> obsticals = new Dictionary<uint, bool>();
         if (SnowList.Count > 0 && WaterList.Count > 0)
         {
             int minCount = SnowList.Count < WaterList.Count ? SnowList.Count : WaterList.Count;
             // Number of rivers
-            for (int i = 0; i < Random.Range(1, MaxRivers > minCount ? minCount : MaxRivers ); ++i)
+            for (int i = 0; i < Random.Range(MaxRivers / 2 > minCount ? minCount / 2 : MaxRivers / 2, MaxRivers > minCount ? minCount : MaxRivers); ++i)
             {
                 // Source/Destination
-                randomWaterIndex = Random.Range(0, WaterList.Count - 1);
+                // <Todo>
+                // For each river destination, expand the lake if small
+                // </Todo>
                 randomSnowIndex = Random.Range(0, SnowList.Count - 1);
                 source = SnowList[randomSnowIndex];
                 SnowList.RemoveAt(randomSnowIndex);
-                destination = WaterList[randomWaterIndex];
-                WaterList.RemoveAt(randomWaterIndex);
+                currentVector = pathFinding[source].Item;
+                Vector3Int minVector = new Vector3Int(int.MaxValue, int.MaxValue, int.MaxValue);
+                foreach (uint id in WaterList)
+                {
+                    if (destination == uint.MaxValue) destination = id;
+                    else if ((pathFinding[id].Item - currentVector).magnitude
+                        < (pathFinding[destination].Item - currentVector).magnitude)
+                        destination = id;
+                }
+                WaterList.Remove(destination);
 
                 var path = pathFinding.Dijkstra(source, destination);
                 foreach (var node in path.GetPath())
                 {
                     currentVector = pathFinding[node].Item;
-                    placementVector.Set(currentVector.x - min.x, currentVector.y - min.y, currentVector.z - min.z);
+                    TileBase tile = Floor.GetTile(currentVector);
                     if (lastVector.x == -1) lastVector = currentVector;
                     if (currentVector.z < WaterLevel || obsticals.ContainsKey(node)) break;
-                    RiverMap.SetTile(placementVector, WaterTile);
-                    RiverMap.SetTileFlags(placementVector, TileFlags.None);
-                    color = RiverMap.GetColor(placementVector);
-                    color.g -= colorIncrement * (placementVector.z - WaterLevel);
-                    RiverMap.SetColor(placementVector, color);
+                    Floor.SetTile(currentVector, null);
+                    setTile(RiverMap, currentVector, WaterTile);
+                    --currentVector.z;
+                    setTile(Floor, currentVector, tile);
                     lastVector = pathFinding[node].Item;
-                    obsticals.Add(node,true); // removeParents(node);
+                    obsticals.Add(node, true); // removeParents(node);
                 }
             }
             return;
