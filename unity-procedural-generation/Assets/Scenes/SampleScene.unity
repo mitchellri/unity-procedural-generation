@@ -285,9 +285,9 @@ MonoBehaviour:
   Octaves: 8
   Lacunarity: 2
   Amplitude: 1
-  WaterLevel: -1
-  SnowLevel: 2
-  MaxRivers: 25
+  WaterLevel: -2
+  SnowLevel: 3
+  MaxRivers: 50
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
