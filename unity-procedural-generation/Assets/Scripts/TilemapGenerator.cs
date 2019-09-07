@@ -103,7 +103,7 @@ public class TilemapGenerator : MonoBehaviour
         var nodes = terrainGenerator.Graph.GetEnumerator();
         while (nodes.MoveNext()) setTile(Floor, nodes.Current.Item);
         nodes = riverGenerator.Graph.GetEnumerator();
-        while (nodes.MoveNext()) setTile(Floor, nodes.Current.Item, WaterTile);
+        while (nodes.MoveNext()) setTile(RiverMap, nodes.Current.Item, WaterTile);
     }
 
     private void setTile(Tilemap tileMap, Vector3Int vector, TileBase tile = null, bool colorTile = true)

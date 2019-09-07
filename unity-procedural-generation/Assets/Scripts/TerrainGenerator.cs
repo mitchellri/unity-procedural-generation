@@ -20,13 +20,12 @@ class TerrainGenerator : Generator
         var time = Time.realtimeSinceStartup;
 
         Reset();
-        uint[,] idGrid = new uint[Width, Length];
         int smoothness = Random.Range(MinimumSmoothness, MaximumSmoothness),
             z;
-        Vector3Int index = new Vector3Int();
-        for (int x = 0; x < Width; ++x)
+        Vector3Int vectorIndex = new Vector3Int();
+        for (int y = 0; y < Length; ++y)
         {
-            for (int y = 0; y < Length; ++y)
+            for (int x = 0; x < Width; ++x)
             {
                 z = (int)Mathf.Round(
                     /* Setting impact:
@@ -42,12 +41,22 @@ class TerrainGenerator : Generator
                         amplitude: Amplitude,
                         octaves: Octaves
                     ) * 10);
-                index.Set(x, y, z);
-                idGrid[x, y] = Graph.AddNode(index);
+                vectorIndex.Set(x, y, z);
+                Graph.AddNode(vectorIndex);
             }
         }
-        createNetwork(idGrid);
 
+        // Create network
+        int ix, iy;
+        for (uint i = 1; i <= Width * Length; ++i)
+        {
+            ix = (int)((i - 1) % Width);
+            iy = (int)((i - 1) / Width);
+            if (ix + 1 < Width) Graph.Connect(i, i + 1, costFunction(Graph[i + 1].Item - Graph[i].Item), 0);
+            if (ix - 1 >= 0) Graph.Connect(i, i - 1, costFunction(Graph[i - 1].Item - Graph[i].Item), 0);
+            if (iy + 1 < Length) Graph.Connect(i, (uint)(i + Width), costFunction(Graph[(uint)(i + Width)].Item - Graph[i].Item), 0);
+            if (iy - 1 >= 0) Graph.Connect(i, (uint)(i - Width), costFunction(Graph[(uint)(i - Width)].Item - Graph[i].Item), 0);
+        }
         Debug.Log("Terrain generated in " + (Time.realtimeSinceStartup - time));
     }
 
@@ -57,40 +66,9 @@ class TerrainGenerator : Generator
         perlinNoise.ResetGradientArray();
     }
 
-    private int movementCostFunction(Vector3Int movementVector)
+    private int costFunction(Vector3Int movementVector)
     {
+        if (Mathf.Abs(movementVector.x) > 1 || Mathf.Abs(movementVector.y) > 1 || Mathf.Abs(movementVector.z) > 1) Debug.LogError("Moving more than one " + movementVector + ": " + (movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x)));
         return movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x);
-    }
-
-    private void createNetwork(uint[,] idGrid)
-    {
-        Vector3Int start = new Vector3Int(),
-            end = new Vector3Int(),
-            movement;
-        int ix, iy;
-        for (int x = 0; x < Width; ++x)
-        {
-            for (int y = 0; y < Length; ++y)
-            {
-                start.Set(x, y, Graph[idGrid[x, y]].Item.z);
-                for (int i = -1; i <= 1; i += 2)
-                {
-                    ix = x + i;
-                    iy = y + i;
-                    if (ix < Width && ix >= 0)
-                    {
-                        end.Set(ix, y, Graph[idGrid[ix, y]].Item.z);
-                        movement = end - start;
-                        if (movement.z <= 0) Graph.Connect(idGrid[x, y], idGrid[ix, y], movementCostFunction(movement), 0);
-                    }
-                    if (iy < Length && iy >= 0)
-                    {
-                        end.Set(x, iy, Graph[idGrid[x, iy]].Item.z);
-                        movement = end - start;
-                        if (movement.z <= 0) Graph.Connect(idGrid[x, y], idGrid[x, iy], movementCostFunction(movement), 0);
-                    }
-                }
-            }
-        }
     }
 }
