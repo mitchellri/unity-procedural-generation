@@ -1,24 +1,19 @@
-﻿using UnityEngine;
+﻿using Dijkstra.NET.Graph;
+using UnityEngine;
 
 class TerrainGenerator : Generator
 {
-    // Public members
-    public int Width, Length;
     // Private members
     private PerlinNoise perlinNoise;
 
     // Constructors
-    public TerrainGenerator(int width, int length)
+    public TerrainGenerator(int width, int length) : base(width, length)
     {
-        Width = width;
-        Length = length;
         perlinNoise = new PerlinNoise(width, length);
     }
 
     public void GenerateTerrain(int MinimumSmoothness, int MaximumSmoothness, float Lacunarity, float Amplitude, int Octaves)
     {
-        var time = Time.realtimeSinceStartup;
-
         Reset();
         int smoothness = Random.Range(MinimumSmoothness, MaximumSmoothness),
             z;
@@ -42,11 +37,33 @@ class TerrainGenerator : Generator
                         octaves: Octaves
                     ) * 10);
                 vectorIndex.Set(x, y, z);
+                HeightMap[x, y] = z;
                 Graph.AddNode(vectorIndex);
             }
         }
+        setNetwork();
+    }
 
-        // Create network
+    public void SetGraph(int[,] heightMap)
+    {
+        HeightMap = heightMap;
+        Graph = new Graph<Vector3Int, int>();
+        Vector3Int vector = new Vector3Int();
+        for (int y = 0; y < Length; ++y)
+        {
+            vector.y = y;
+            for (int x = 0; x < Width; ++x)
+            {
+                vector.x = x;
+                vector.z = heightMap[x, y];
+                Graph.AddNode(vector);
+            }
+        }
+        setNetwork();
+    }
+
+    protected void setNetwork()
+    {
         int ix, iy;
         for (uint i = 1; i <= Width * Length; ++i)
         {
@@ -57,18 +74,17 @@ class TerrainGenerator : Generator
             if (iy + 1 < Length) Graph.Connect(i, (uint)(i + Width), costFunction(Graph[(uint)(i + Width)].Item - Graph[i].Item), 0);
             if (iy - 1 >= 0) Graph.Connect(i, (uint)(i - Width), costFunction(Graph[(uint)(i - Width)].Item - Graph[i].Item), 0);
         }
-        Debug.Log("Terrain generated in " + (Time.realtimeSinceStartup - time));
     }
 
     public override void Reset()
     {
         base.Reset();
         perlinNoise.ResetGradientArray();
+        // Heightmap reset not required, it is all overwritten
     }
 
     private int costFunction(Vector3Int movementVector)
     {
-        if (Mathf.Abs(movementVector.x) > 1 || Mathf.Abs(movementVector.y) > 1 || Mathf.Abs(movementVector.z) > 1) Debug.LogError("Moving more than one " + movementVector + ": " + (movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x)));
-        return movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x);
+        return movementVector.z > 0 ? 999 : movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x);
     }
 }

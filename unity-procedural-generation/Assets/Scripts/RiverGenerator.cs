@@ -6,18 +6,26 @@ using Dijkstra.NET.Graph;
 
 class RiverGenerator : Generator
 {
-    private List<uint> obsticals = new List<uint>();
+    // Private members
+    private List<uint> obsticals; // Unaltered terrain nodes where rivers have been placed
+    private const float riverDepth = 0.25f;
+    private const int riverSlopeMagnitude = 2;
 
-    public void GenerateRivers(Graph<Vector3Int, int> terrainGraph, List<uint> sourceList, List<uint> destinationList, int MaxRivers)
+    public RiverGenerator(int width, int length) : base(width, length)
     {
-        var time = Time.realtimeSinceStartup;
-        Reset();
+        obsticals = new List<uint>();
+        FillHeightMap(int.MaxValue);
+    }
+
+    // River methods
+    public void GenerateRivers(TerrainGenerator terrainGenerator, List<uint> sourceList, List<uint> destinationList, int MaxRivers)
+    {
         if (MaxRivers == 0) return;
 
-        // Find travel nodes
         uint source, destination = uint.MaxValue;
         Vector3Int currentVector, lastVector = new Vector3Int(-1, -1, -1);
-        int randomSnowIndex;
+        int randomSnowIndex,
+            lastObsticalLength = 0;
         if (sourceList.Count > 0 && destinationList.Count > 0)
         {
             int minCount = sourceList.Count < destinationList.Count ? sourceList.Count : destinationList.Count;
@@ -28,37 +36,90 @@ class RiverGenerator : Generator
                 randomSnowIndex = Random.Range(0, sourceList.Count - 1);
                 source = sourceList[randomSnowIndex];
                 sourceList.RemoveAt(randomSnowIndex);
-                currentVector = terrainGraph[source].Item;
-                Vector3Int minVector = new Vector3Int(int.MaxValue, int.MaxValue, int.MaxValue);
+                currentVector = terrainGenerator.Graph[source].Item;
+                // Closest destination to source
                 foreach (uint id in destinationList)
                 {
                     if (destination == uint.MaxValue) destination = id;
-                    else if ((terrainGraph[id].Item - currentVector).magnitude
-                        < (terrainGraph[destination].Item - currentVector).magnitude)
+                    else if ((terrainGenerator.Graph[id].Item - currentVector).magnitude
+                        < (terrainGenerator.Graph[destination].Item - currentVector).magnitude)
                         destination = id;
                 }
                 destinationList.Remove(destination);
-                generateRiver(terrainGraph, source, destination);
+                GenerateRiver(terrainGenerator, source, destination);
+                while (lastObsticalLength < obsticals.Count)
+                    sourceList.Remove(obsticals[lastObsticalLength++]);
             }
+            terrainGenerator.SetGraph(terrainGenerator.HeightMap);
         }
-
-        Debug.Log("Rivers generated in " + (Time.realtimeSinceStartup - time));
         return;
     }
 
-    private void generateRiver(Graph<Vector3Int, int> terrainGraph, uint source, uint destination)
+    public void GenerateRiver(TerrainGenerator terrainGenerator, uint source, uint destination)
     {
-        Vector3Int currentVector;
-        var path = terrainGraph.Dijkstra(source, destination);
-        // bool firstNodePlaced = false;
+        // Temporary variables
+        var path = terrainGenerator.Graph.Dijkstra(source, destination);
+        Vector3Int waterVector, previousWaterVector = new Vector3Int(-1, -1, -1),
+            destinationVector = terrainGenerator.Graph[destination].Item;
+        int terrainZ;
+
         foreach (var node in path.GetPath())
         {
-            /* if (!firstNodePlaced) Graph.AddNode(currentVector);
-            else Graph.Connect(obsticals[obsticals.Count-1], Graph.AddNode(currentVector), 0, 0); */
+            terrainZ = terrainGenerator.Graph[node].Item.z;
+            waterVector = terrainGenerator.Graph[node].Item;
+            waterVector.z -= (int)((waterVector.z - destinationVector.z) * riverDepth); // Lower river vector from terrain
+
+            // Hit another river
             if (obsticals.Contains(node)) break;
-            currentVector = terrainGraph[node].Item;
-            Graph.AddNode(currentVector); // No need for edges
-            obsticals.Add(node); // removeParents(node);
+
+            // Readjust terrain if going up
+            if (previousWaterVector.x >= 0 // First node placed
+                && (waterVector - previousWaterVector).z > 0) // Going up
+                waterVector.z = previousWaterVector.z;
+
+            // Add node
+            Graph.AddNode(waterVector);
+            HeightMap[waterVector.x, waterVector.y] = waterVector.z;
+            obsticals.Add(node);
+            previousWaterVector = waterVector;
+
+            // Reform land
+            terrainGenerator.HeightMap[waterVector.x, waterVector.y] = --waterVector.z;
+            generateBank(terrainGenerator, node);
+        }
+    }
+
+    // River bank methods
+    private void generateBank(TerrainGenerator terrainGenerator, uint node)
+    {
+        Vector3Int currentVector = terrainGenerator.Graph[node].Item,
+            indexVector;
+        currentVector.z = terrainGenerator.HeightMap[currentVector.x, currentVector.y];
+        // River banks
+        bool bAltered = true;
+        while (bAltered)
+        {
+            // Our default assumption is that we don't change anything
+            // so we don't need to repeat the process
+            bAltered = false;
+            // Cycle through all valid terrain within the slope width
+            // of the current position
+            foreach (uint parent in terrainGenerator.Graph.Parents(node))
+            {
+                if (obsticals.Contains(parent)) continue;
+                indexVector = terrainGenerator.Graph[parent].Item;
+                indexVector.z = terrainGenerator.HeightMap[indexVector.x, indexVector.y];
+                // find the slope from where we are to where we are checking
+                Vector3Int fSlope = currentVector - indexVector;
+                if (fSlope.magnitude > riverSlopeMagnitude)
+                {
+                    // the slope is too big so adjust the height and keep in mind
+                    // that the terrain was altered and we should make another pass
+                    --terrainGenerator.HeightMap[indexVector.x, indexVector.y];
+                    bAltered = true;
+                    generateBank(terrainGenerator, parent); // Crashes Unity
+                }
+            }
         }
     }
 
@@ -66,5 +127,6 @@ class RiverGenerator : Generator
     {
         base.Reset();
         obsticals.Clear();
+        FillHeightMap(int.MaxValue);
     }
 }

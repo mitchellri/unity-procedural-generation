@@ -56,10 +56,13 @@ public class CameraControl : MonoBehaviour
 
         //Scroll wheel commands
         //Mouse wheel moving forward
-        if (Input.GetAxis("Mouse ScrollWheel") > 0 && zoomSize - zoomSpeed > 0) GetComponent<Camera>().orthographicSize = zoomSize -= zoomSpeed;
+        if ((Input.GetAxis("Mouse ScrollWheel") > 0 && zoomSize - zoomSpeed > 0)
+            || Input.GetKey(KeyCode.Z))
+            GetComponent<Camera>().orthographicSize = zoomSize -= zoomSpeed;
 
         //Mouse wheel moving backward
-        else if (Input.GetAxis("Mouse ScrollWheel") < 0) GetComponent<Camera>().orthographicSize = zoomSize += zoomSpeed;
+        else if (Input.GetAxis("Mouse ScrollWheel") < 0
+            || Input.GetKey(KeyCode.X)) GetComponent<Camera>().orthographicSize = zoomSize += zoomSpeed;
     }
 
     private Vector3 GetBaseInput()

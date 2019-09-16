@@ -287,7 +287,7 @@ MonoBehaviour:
   Amplitude: 1
   WaterLevel: -2
   SnowLevel: 3
-  MaxRivers: 50
+  MaxRivers: 100
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
