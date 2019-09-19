@@ -58,8 +58,15 @@ public class PerlinNoise
         float dx = x - (float)ix;
         float dy = y - (float)iy;
 
+        int xInd = ix % gradientArray.GetLength(0),
+            yInd = iy % gradientArray.GetLength(1);
+
+        if (xInd < 0) xInd = 0;
+        if (yInd < 0) yInd = 0;
+
         // Compute the dot-product
-        return (dx * gradientArray[ix % gradientArray.GetLength(0), iy % gradientArray.GetLength(1)].x + dy * gradientArray[ix % gradientArray.GetLength(0), iy % gradientArray.GetLength(1)].y);
+        return dx * gradientArray[xInd, yInd].x
+            + dy * gradientArray[xInd, yInd].y;
     }
     public float Perlin(float x, float y)
     {
@@ -96,5 +103,24 @@ public class PerlinNoise
             frequency *= lacunarity;
         }
         return sum;
+    }
+
+    public float DomainWarp(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
+    {
+        const float scale = 50f, // 12.5 if using second iteration
+            offsetX = 69.420f/2,
+            offsetY = 420.69f/2;
+        // First iteration
+        float wx = x + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));
+        float wy = y + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));
+        // Second iteration
+        // Does not look good
+        /*wx = x + scaleX * FractionalBrownianMotion(x + scaleX * wx + xOffsetX2, y + scaleX * wy + xOffsetY2, octaves, lacunarity, gain, amplitude, frequency);
+        wy = y + scaleY * FractionalBrownianMotion(x + scaleY * wx + yOffsetX2, y + scaleY * wy + yOffsetY2, octaves, lacunarity, gain, amplitude, frequency);*/
+        if (wx < 0) wx = 0;
+        if (wy < 0) wy = 0;
+        if (wx > gradientArray.Length) wx = gradientArray.Length - 1;
+        if (wy > gradientArray.Length) wy = gradientArray.Length - 1;
+        return FractionalBrownianMotion(wx, wy, octaves, lacunarity, gain, amplitude, frequency);
     }
 }

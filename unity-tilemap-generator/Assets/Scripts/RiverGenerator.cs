@@ -117,7 +117,7 @@ class RiverGenerator : Generator
                     // that the terrain was altered and we should make another pass
                     --terrainGenerator.HeightMap[indexVector.x, indexVector.y];
                     bAltered = true;
-                    generateBank(terrainGenerator, parent); // Crashes Unity
+                    generateBank(terrainGenerator, parent);
                 }
             }
         }

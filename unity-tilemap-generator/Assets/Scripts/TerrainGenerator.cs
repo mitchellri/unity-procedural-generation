@@ -29,7 +29,7 @@ class TerrainGenerator : Generator
                      * Amplitude: Length contrast
                      * Octaves: Edge smoothness
                      */
-                    perlinNoise.FractionalBrownianMotion(
+                    perlinNoise.DomainWarp(
                         x, y,
                         frequency: (float)1 / smoothness,
                         lacunarity: Lacunarity,
