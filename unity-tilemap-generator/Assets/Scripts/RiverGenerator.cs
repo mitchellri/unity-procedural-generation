@@ -94,6 +94,9 @@ class RiverGenerator : Generator
         int maxLevel = levelNodes.Keys.Max(),
             currentLevel,
             lastObsticalLength = obsticals.Count;
+
+        if (maxLevel < minSourceLevel || !levelNodes.ContainsKey(destinationLevel)) return;
+
         List<uint> nodeList;
         uint source, destination;
         Vector3Int currentVector;
@@ -143,7 +146,6 @@ class RiverGenerator : Generator
                 terrainGenerator.Graph[(uint)multiPathDestination].Item
                 : terrainGenerator.Graph[destination].Item;
         int terrainZ;
-        //var path = terrainGenerator.Graph.Dijkstra(source, destination/*, (int)waterVector.magnitude*/);
         var path = terrainGenerator.Graph.AStar(source, destination, heuristic);
         foreach (var node in path.GetPath())
         {
