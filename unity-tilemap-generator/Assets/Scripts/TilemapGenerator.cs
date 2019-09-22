@@ -85,7 +85,7 @@ public class TilemapGenerator : MonoBehaviour
         // Generate rivers
         time = Time.realtimeSinceStartup;
         riverGenerator.Reset();
-        riverGenerator.GenerateRiversByPath(terrainGenerator, SnowLevel, WaterLevel, MaxRivers);
+        riverGenerator.GenerateRiversByHeight(terrainGenerator, SnowLevel, WaterLevel, MaxRivers);
         Debug.Log("<color=blue><b>Rivers</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
         return;
     }

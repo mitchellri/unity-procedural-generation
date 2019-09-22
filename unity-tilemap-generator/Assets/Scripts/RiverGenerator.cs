@@ -77,7 +77,57 @@ class RiverGenerator : Generator
         }
         return;
     }
-    
+
+    public void GenerateRiversByHeight(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int MaxRivers)
+    {
+        if (minSourceLevel < destinationLevel || MaxRivers <= 0) return;
+
+        var nodes = terrainGenerator.Graph.GetEnumerator();
+        Dictionary<int, List<uint>> levelNodes = new Dictionary<int, List<uint>>();
+        while (nodes.MoveNext())
+            if (terrainGenerator.Graph[nodes.Current.Key].Item.z >= destinationLevel || terrainGenerator.Graph[nodes.Current.Key].Item.z <= minSourceLevel)
+            {
+                if (!levelNodes.ContainsKey(terrainGenerator.Graph[nodes.Current.Key].Item.z))
+                    levelNodes[terrainGenerator.Graph[nodes.Current.Key].Item.z] = new List<uint>();
+                levelNodes[terrainGenerator.Graph[nodes.Current.Key].Item.z].Add(nodes.Current.Key);
+            }
+        int maxLevel = levelNodes.Keys.Max(),
+            currentLevel,
+            lastObsticalLength = obsticals.Count;
+        List<uint> nodeList;
+        uint source, destination;
+        Vector3Int currentVector;
+        for (int i = 0; i < Random.Range(MaxRivers / 2, MaxRivers); ++i)
+        {
+            source = uint.MaxValue;
+            // Create path
+            for (currentLevel = Random.Range(minSourceLevel, maxLevel); currentLevel > destinationLevel; --currentLevel)
+            {
+                // Source
+                nodeList = levelNodes[currentLevel];
+                if (source == uint.MaxValue) nodeList.Remove(source = nodeList[Random.Range(0, nodeList.Count - 1)]);
+                currentVector = terrainGenerator.Graph[source].Item;
+
+                destination = uint.MaxValue;
+                if (currentLevel - 1 >= destinationLevel)
+                    nodeList = levelNodes[currentLevel - 1];
+                // Closest lower level destination to source
+                foreach (uint id in nodeList)
+                {
+                    if (destination == uint.MaxValue) destination = id;
+                    else if ((terrainGenerator.Graph[id].Item - currentVector).magnitude
+                        < (terrainGenerator.Graph[destination].Item - currentVector).magnitude)
+                        destination = id;
+                }
+                nodeList.Remove(destination);
+
+                if (!GenerateRiver(terrainGenerator, source, destination, (int)levelNodes[destinationLevel][0])) break;
+                source = destination;
+            }
+        }
+        terrainGenerator.SetGraph(terrainGenerator.HeightMap);
+    }
+
     // True if reaches destination
     public bool GenerateRiver(TerrainGenerator terrainGenerator, uint source, uint destination, int multiPathDestination = -1)
     {
