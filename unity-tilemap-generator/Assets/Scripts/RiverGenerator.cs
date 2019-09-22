@@ -2,7 +2,7 @@
 // Added
 using System.Collections.Generic;
 using Dijkstra.NET.ShortestPath;
-using Dijkstra.NET.Graph;
+using System.Linq;
 
 class RiverGenerator : Generator
 {
@@ -18,19 +18,42 @@ class RiverGenerator : Generator
     }
 
     // River methods
-    public void GenerateRivers(TerrainGenerator terrainGenerator, List<uint> sourceList, List<uint> destinationList, int MaxRivers)
+    public void GenerateRiversByPath(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int MaxRivers)
     {
-        if (MaxRivers == 0) return;
+        if (MaxRivers <= 0) return;
 
+        // Create source and destination list
+        var nodes = terrainGenerator.Graph.GetEnumerator();
+        List<uint> sourceList = new List<uint>(),
+            destinationList = new List<uint>();
+        while (nodes.MoveNext())
+        {
+            if (nodes.Current.Item.z == destinationLevel)
+            {
+                foreach (uint pId in terrainGenerator.Graph.Parents(nodes.Current.Key))
+                {
+                    if (terrainGenerator.Graph[pId].Item.z == destinationLevel + 1)
+                    {
+                        destinationList.Add(nodes.Current.Key);
+                    }
+                }
+            }
+            // Any snow
+            else if (nodes.Current.Item.z >= minSourceLevel) sourceList.Add(nodes.Current.Key);
+        }
+
+        // Temporary variables
         uint source, destination = uint.MaxValue;
         Vector3Int currentVector, lastVector = new Vector3Int(-1, -1, -1);
         int randomSnowIndex,
-            lastObsticalLength = 0;
+            lastObsticalLength = obsticals.Count;
         if (sourceList.Count > 0 && destinationList.Count > 0)
         {
-            int minCount = sourceList.Count < destinationList.Count ? sourceList.Count : destinationList.Count;
+            int minCount = sourceList.Count < destinationList.Count ? sourceList.Count : destinationList.Count,
+                minRange = MaxRivers / 2 > minCount ? minCount / 2 : MaxRivers / 2,
+                maxRange = MaxRivers > minCount ? minCount : MaxRivers;
             // Number of rivers
-            for (int i = 0; i < Random.Range(MaxRivers / 2 > minCount ? minCount / 2 : MaxRivers / 2, MaxRivers > minCount ? minCount : MaxRivers); ++i)
+            for (int i = 0; i < Random.Range(minRange, maxRange); ++i)
             {
                 // Source/Destination
                 randomSnowIndex = Random.Range(0, sourceList.Count - 1);
@@ -54,27 +77,40 @@ class RiverGenerator : Generator
         }
         return;
     }
-
-    public void GenerateRiver(TerrainGenerator terrainGenerator, uint source, uint destination)
+    
+    // True if reaches destination
+    public bool GenerateRiver(TerrainGenerator terrainGenerator, uint source, uint destination, int multiPathDestination = -1)
     {
-        // Temporary variables
-        var path = terrainGenerator.Graph.Dijkstra(source, destination);
-        Vector3Int waterVector, previousWaterVector = new Vector3Int(-1, -1, -1),
-            destinationVector = terrainGenerator.Graph[destination].Item;
-        int terrainZ;
+        if (source == destination) return true;
 
+        // Temporary variables
+        System.Func<uint, uint, int> heuristic = delegate (uint a, uint b)
+        {
+            return (int)(terrainGenerator.Graph[destination].Item - terrainGenerator.Graph[a].Item).magnitude;
+        };
+        Vector3Int waterVector, previousWaterVector = new Vector3Int(-1, -1, -1),
+            destinationVector = multiPathDestination >= 0 ?
+                terrainGenerator.Graph[(uint)multiPathDestination].Item
+                : terrainGenerator.Graph[destination].Item;
+        int terrainZ;
+        //var path = terrainGenerator.Graph.Dijkstra(source, destination/*, (int)waterVector.magnitude*/);
+        var path = terrainGenerator.Graph.AStar(source, destination, heuristic);
         foreach (var node in path.GetPath())
         {
             terrainZ = terrainGenerator.Graph[node].Item.z;
             waterVector = terrainGenerator.Graph[node].Item;
             waterVector.z -= (int)((waterVector.z - destinationVector.z) * riverDepth); // Lower river vector from terrain
+            if (previousWaterVector.x < 0) previousWaterVector = waterVector;
 
             // Hit another river
-            if (obsticals.Contains(node)) break;
+            if (obsticals.Contains(node))
+            {
+                if (node == source) continue;
+                else return false;
+            }
 
             // Readjust terrain if going up
-            if (previousWaterVector.x >= 0 // First node placed
-                && (waterVector - previousWaterVector).z > 0) // Going up
+            if ((waterVector - previousWaterVector).z > 0)
                 waterVector.z = previousWaterVector.z;
 
             // Add node
@@ -87,6 +123,7 @@ class RiverGenerator : Generator
             terrainGenerator.HeightMap[waterVector.x, waterVector.y] = --waterVector.z;
             generateBank(terrainGenerator, node);
         }
+        return true;
     }
 
     // River bank methods

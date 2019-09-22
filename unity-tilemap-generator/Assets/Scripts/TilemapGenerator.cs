@@ -85,41 +85,7 @@ public class TilemapGenerator : MonoBehaviour
         // Generate rivers
         time = Time.realtimeSinceStartup;
         riverGenerator.Reset();
-        // Find travel nodes
-        List<uint> sourceList = new List<uint>(),
-            destinationList = new List<uint>();
-        var nodes = terrainGenerator.Graph.GetEnumerator();
-        while (nodes.MoveNext())
-        {
-            if (nodes.Current.Item.z == WaterLevel)
-            {
-                foreach (uint pId in terrainGenerator.Graph.Parents(nodes.Current.Key))
-                {
-                    if (terrainGenerator.Graph[pId].Item.z == WaterLevel + 1)
-                    {
-                        destinationList.Add(nodes.Current.Key);
-                        break;
-                    }
-                }
-            }
-            // Any snow
-            else if (nodes.Current.Item.z >= SnowLevel) sourceList.Add(nodes.Current.Key);
-            // Edges of snow
-            // No edges moving upward, so no parents in lower z-axis
-            /*else if (nodes.Current.Item.z == SnowLevel - 1)
-            {
-                foreach (uint pId in terrainGenerator.Graph.Parents(nodes.Current.Key))
-                {
-                    // One parent can have several children
-                    if (terrainGenerator.Graph[pId].Item.z == SnowLevel && !sourceList.Contains(pId))
-                    {
-                        sourceList.Add(nodes.Current.Key);
-                        break;
-                    }
-                }
-            }*/
-        }
-        riverGenerator.GenerateRivers(terrainGenerator, sourceList, destinationList, MaxRivers);
+        riverGenerator.GenerateRiversByPath(terrainGenerator, SnowLevel, WaterLevel, MaxRivers);
         Debug.Log("<color=blue><b>Rivers</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
         return;
     }
