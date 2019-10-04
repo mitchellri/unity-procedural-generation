@@ -14,11 +14,26 @@ abstract class Generator
         Graph = new Graph<Vector3Int, int>();
         HeightMap = new int[width, length];
     }
+
+    /// <summary>
+    /// Sets Width and Length and replaces heightmap
+    /// </summary>
+    public void SetSize(int width, int length)
+    {
+        Width = width;
+        Length = length;
+        HeightMap = new int[width, length]; // Don't need to retain existing values
+    }
+
+    /// <summary>
+    /// Replaces graph
+    /// </summary>
     public virtual void Reset()
     {
         Graph = new Graph<Vector3Int, int>();
     }
-    protected void FillHeightMap(int value)
+
+    protected void fillHeightMap(int value)
     {
         for (int i = 0; i < Width; ++i) for (int j = 0; j < Length; ++j) HeightMap[i, j] = value;
     }

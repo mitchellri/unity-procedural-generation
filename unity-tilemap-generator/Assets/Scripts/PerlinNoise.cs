@@ -10,11 +10,6 @@ public class PerlinNoise
     {
         initialize(width, length);
     }
-    public PerlinNoise(int width, int length, int seed)
-    {
-        Random.InitState(seed);
-        initialize(width, length);
-    }
     private void initialize(int width, int length)
     {
         gradientArray = getGradientArray(width, length);
@@ -34,6 +29,9 @@ public class PerlinNoise
                 gradientArray[i, j] = getGradientVector();
         return gradientArray;
     }
+    /// <summary>
+    /// Generates new noise array
+    /// </summary>
     public void ResetGradientArray()
     {
         for (int i = 0; i < gradientArray.GetLength(0); ++i)
@@ -68,6 +66,10 @@ public class PerlinNoise
         return dx * gradientArray[xInd, yInd].x
             + dy * gradientArray[xInd, yInd].y;
     }
+    /// <summary>
+    /// Perlin noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float Perlin(float x, float y)
     {
         // Determine grid cell coordinates
@@ -93,6 +95,11 @@ public class PerlinNoise
         value = lerp(ix0, ix1, sy);
         return value;
     }
+
+    /// <summary>
+    /// Iterated perlin noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float FractionalBrownianMotion(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
         float sum = 0;
@@ -105,6 +112,10 @@ public class PerlinNoise
         return sum;
     }
 
+    /// <summary>
+    /// Warped fractional brownian motion noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float DomainWarp(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
         const float scale = 50f, // 12.5 if using second iteration

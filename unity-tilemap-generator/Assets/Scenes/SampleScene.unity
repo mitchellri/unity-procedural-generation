@@ -123,9 +123,8 @@ GameObject:
   - component: {fileID: 516116401}
   - component: {fileID: 516116403}
   - component: {fileID: 516116402}
-  - component: {fileID: 516116404}
   m_Layer: 0
-  m_Name: Tilemap
+  m_Name: TerrainMap
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -261,33 +260,6 @@ Tilemap:
     e31: 0
     e32: 0
     e33: 1
---- !u!114 &516116404
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 516116400}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fc7e528095e60f6489b0546261a515e8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  Floor: {fileID: 516116403}
-  RiverMap: {fileID: 954114763}
-  FloorTile: {fileID: 11400000, guid: a99e574493fe4544ab680ec394d6a21d, type: 2}
-  WaterTile: {fileID: 11400000, guid: 1763a25001b91bd4eb25dac9ff762d1f, type: 2}
-  SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
-  Width: 1000
-  Length: 1000
-  MinimumSmoothness: 150
-  MaximumSmoothness: 200
-  Octaves: 8
-  Lacunarity: 2
-  Amplitude: 1
-  WaterLevel: -2
-  SnowLevel: 3
-  MaxRivers: 100
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -393,6 +365,7 @@ GameObject:
   m_Component:
   - component: {fileID: 657764903}
   - component: {fileID: 657764902}
+  - component: {fileID: 657764904}
   m_Layer: 0
   m_Name: Grid
   m_TagString: Untagged
@@ -428,6 +401,33 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &657764904
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 657764901}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc7e528095e60f6489b0546261a515e8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  TerrainMap: {fileID: 516116403}
+  WaterMap: {fileID: 954114763}
+  FloorTile: {fileID: 11400000, guid: a99e574493fe4544ab680ec394d6a21d, type: 2}
+  WaterTile: {fileID: 11400000, guid: 1763a25001b91bd4eb25dac9ff762d1f, type: 2}
+  SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
+  Width: 250
+  Length: 250
+  WaterLevel: 0
+  SnowLevel: 3
+  MaxRivers: 25
+  Smoothness: 175
+  Octaves: 8
+  Lacunarity: 2
+  Amplitude: 1.5
+  Seed: 
 --- !u!1 &954114760
 GameObject:
   m_ObjectHideFlags: 0
@@ -440,7 +440,7 @@ GameObject:
   - component: {fileID: 954114763}
   - component: {fileID: 954114762}
   m_Layer: 0
-  m_Name: RiverMap
+  m_Name: WaterMap
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

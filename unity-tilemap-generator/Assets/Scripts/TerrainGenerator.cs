@@ -12,29 +12,25 @@ class TerrainGenerator : Generator
         perlinNoise = new PerlinNoise(width, length);
     }
 
-    public void GenerateTerrain(int MinimumSmoothness, int MaximumSmoothness, float Lacunarity, float Amplitude, int Octaves)
+    /// <summary>
+    /// Generates terrain to class attributes
+    /// </summary>
+    public void GenerateTerrain(int smoothness, float lacunarity, float amplitude, int octaves)
     {
-        Reset();
-        int smoothness = Random.Range(MinimumSmoothness, MaximumSmoothness),
-            z;
+        base.Reset();
+        int z;
         Vector3Int vectorIndex = new Vector3Int();
         for (int y = 0; y < Length; ++y)
         {
             for (int x = 0; x < Width; ++x)
             {
                 z = (int)Mathf.Round(
-                    /* Setting impact:
-                     * Frequency: smoothness of terrain
-                     * Lacunarity: Randomness
-                     * Amplitude: Length contrast
-                     * Octaves: Edge smoothness
-                     */
                     perlinNoise.DomainWarp(
                         x, y,
                         frequency: (float)1 / smoothness,
-                        lacunarity: Lacunarity,
-                        amplitude: Amplitude,
-                        octaves: Octaves
+                        lacunarity: lacunarity,
+                        amplitude: amplitude,
+                        octaves: octaves
                     ) * 10);
                 vectorIndex.Set(x, y, z);
                 HeightMap[x, y] = z;
@@ -44,6 +40,10 @@ class TerrainGenerator : Generator
         setNetwork();
     }
 
+    /// <summary>
+    /// Sets graph according to heightmap
+    /// </summary>
+    /// <param name="heightMap">Z-value 2D array equal in size to Width and Length attributes</param>
     public void SetGraph(int[,] heightMap)
     {
         HeightMap = heightMap;
@@ -76,9 +76,12 @@ class TerrainGenerator : Generator
         }
     }
 
+    /// <summary>
+    /// Resets noise
+    /// </summary>
     public override void Reset()
     {
-        base.Reset();
+        // Base reset not required, is reset on generation
         perlinNoise.ResetGradientArray();
         // Heightmap reset not required, it is all overwritten
     }
