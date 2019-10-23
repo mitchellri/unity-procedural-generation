@@ -420,14 +420,16 @@ MonoBehaviour:
   SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
   Width: 250
   Length: 250
-  WaterLevel: 0
+  WaterLevel: -1
   SnowLevel: 3
-  MaxRivers: 25
+  NumRivers: 25
   Smoothness: 175
   Octaves: 8
   Lacunarity: 2
   Amplitude: 1.5
   Seed: 
+  GenerateLoop: 0
+  RiverMethod: 1
 --- !u!1 &954114760
 GameObject:
   m_ObjectHideFlags: 0

@@ -3,6 +3,12 @@
 using UnityEngine.Tilemaps;
 using System.Collections.Generic;
 
+public enum RiverMethod
+{
+    Path,
+    Height
+}
+
 public class TilemapGenerator : MonoBehaviour
 {
     // Inspector parameters
@@ -19,7 +25,7 @@ public class TilemapGenerator : MonoBehaviour
     public int WaterLevel;
     public int SnowLevel;
     [SerializeField]
-    private int MaxRivers = 0;
+    private int NumRivers = 0;
 
     [Header("Noise")]
     [SerializeField]
@@ -38,19 +44,34 @@ public class TilemapGenerator : MonoBehaviour
     private float Amplitude = 1;
     [SerializeField]
     [Tooltip("Cannot be changed after start.")]
-    private string Seed;
+    private string Seed = "";
+
+    [Header("Development")]
+    public bool RegenerateLoop = false;
+    public RiverMethod RiverMethod = RiverMethod.Height;
 
     // Private members
     private TerrainGenerator terrainGenerator;
-    private RiverGenerator riverGenerator;
+    private WaterGenerator waterGenerator;
     private static readonly float colorIncrement = 0.1f;
+    private Dictionary<RiverMethod, System.Action<WaterGenerator, TerrainGenerator, int, int, int>> RiverMethods = new Dictionary<RiverMethod, System.Action<WaterGenerator, TerrainGenerator, int, int, int>>()
+    {
+        { RiverMethod.Path, (waterGenerator, terrainGenerator, snowLevel, waterLevel, numRivers) => {
+                waterGenerator.RiversByPath(terrainGenerator, snowLevel, waterLevel, numRivers);
+            }
+        },
+        { RiverMethod.Height, (waterGenerator, terrainGenerator, snowLevel, waterLevel, numRivers) => {
+                waterGenerator.RiversByHeight(terrainGenerator, snowLevel, waterLevel, numRivers);
+            }
+        },
+    };
 
     // Start is called before the first frame update
     void Start()
     {
         Random.InitState(Seed.GetHashCode());
         terrainGenerator = new TerrainGenerator(Width, Length);
-        riverGenerator = new RiverGenerator(Width, Length);
+        waterGenerator = new WaterGenerator(Width, Length);
         Refresh();
     }
 
@@ -58,19 +79,21 @@ public class TilemapGenerator : MonoBehaviour
     // Only used for debugging
     void Update()
     {
+        if (RegenerateLoop) Regenerate();
+        else if (Input.GetKeyUp(KeyCode.Space)) Regenerate();
         if (Input.GetMouseButtonUp(0))
         {
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3Int coordinate = WaterMap.WorldToCell(mouseWorldPos);
-            foreach (var a in riverGenerator.Graph)
+            coordinate.z = -999;
+            foreach (var a in waterGenerator.Graph)
             {
-                if (a.Item.x == coordinate.x && a.Item.y == coordinate.y)
+                if (a.Item.x == coordinate.x && a.Item.y == coordinate.y && a.Item.z > coordinate.z)
                 {
                     coordinate.z = a.Item.z;
-                    break;
                 }
             }
-            Debug.Log("Clicked <color=blue><b>river</b></color> at <b>" + coordinate + "</b>");
+            Debug.Log("Clicked <color=blue><b>water</b></color> at <b>" + coordinate + "</b>");
         }
         if (Input.GetMouseButtonUp(1))
         {
@@ -79,15 +102,6 @@ public class TilemapGenerator : MonoBehaviour
             coordinate.z = terrainGenerator.HeightMap[coordinate.x, coordinate.y];
             Debug.Log("Clicked <color=green><b>terrain</b></color> at <b>" + coordinate + "</b>");
         }
-        /*if (Input.GetKeyUp(KeyCode.R))
-        {
-            Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            Vector3Int coordinate = TerrainMap.WorldToCell(mouseWorldPos);
-
-            riverGenerator.GenerateRiverByHeight(terrainGenerator, (uint)(coordinate.x + coordinate.y * terrainGenerator.Width), WaterLevel - 1);
-            terrainGenerator.SetGraph(terrainGenerator.HeightMap);
-            draw();
-        }*/
     }
 
     /// <summary>
@@ -96,8 +110,6 @@ public class TilemapGenerator : MonoBehaviour
     [ContextMenu("Refresh")]
     public void Refresh()
     {
-        terrainGenerator.SetSize(Width, Length);
-        riverGenerator.SetSize(Width, Length);
         generate();
         draw();
     }
@@ -121,8 +133,10 @@ public class TilemapGenerator : MonoBehaviour
 
         // Generate rivers
         time = Time.realtimeSinceStartup;
-        riverGenerator.GenerateRiversByHeight(terrainGenerator, SnowLevel, WaterLevel - 1, MaxRivers);
-        Debug.Log("<color=blue><b>Rivers</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
+        waterGenerator.Reset();
+        waterGenerator.Fill(terrainGenerator, WaterLevel);
+        RiverMethods[RiverMethod](waterGenerator, terrainGenerator, SnowLevel, WaterLevel, NumRivers);
+        Debug.Log("<color=blue><b>Water</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
         return;
     }
 
@@ -134,31 +148,17 @@ public class TilemapGenerator : MonoBehaviour
 
         // Terrain
         var nodes = terrainGenerator.Graph.GetEnumerator();
-        Vector3Int index;
         TileBase tile;
         while (nodes.MoveNext())
         {
             if (nodes.Current.Item.z >= SnowLevel) tile = SnowTile;
             else tile = FloorTile;
             setTile(TerrainMap, nodes.Current.Item, tile);
-            if (nodes.Current.Item.z < WaterLevel)
-            {
-                index = nodes.Current.Item;
-                ++index.z;
-                for (; index.z <= WaterLevel; ++index.z)
-                    setTile(WaterMap, index, WaterTile, nodes.Current.Item.z - index.z + 1);
-            }
         }
 
         // Water
-        nodes = riverGenerator.Graph.GetEnumerator();
-        Vector3Int currentVector;
-        while (nodes.MoveNext())
-        {
-            currentVector = nodes.Current.Item;
-            currentVector.z = riverGenerator.HeightMap[currentVector.x, currentVector.y];
-            setTile(WaterMap, currentVector, WaterTile);
-        }
+        nodes = waterGenerator.Graph.GetEnumerator();
+        while (nodes.MoveNext()) setTile(WaterMap, nodes.Current.Item, WaterTile);
     }
 
     private void setTile(Tilemap tileMap, Vector3Int vector, TileBase tile, int? colorZ = null)

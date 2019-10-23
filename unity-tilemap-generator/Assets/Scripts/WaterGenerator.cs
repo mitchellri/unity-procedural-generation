@@ -3,17 +3,16 @@ using System.Collections.Generic;
 using Dijkstra.NET.ShortestPath;
 using System.Linq;
 
-class RiverGenerator : Generator
+class WaterGenerator : Generator
 {
     // Private members
-    private List<uint> obsticals; // Unaltered terrain nodes where rivers have been placed
-    private const float riverDepth = 0.25f;
+    private List<uint> obsticals; // Terrain nodes where rivers have been placed
+    private const float riverDepth = 0.75f;
     private const int riverSlopeMagnitude = 2;
 
-    public RiverGenerator(int width, int length) : base(width, length)
+    public WaterGenerator(int width, int length) : base(width, length)
     {
         obsticals = new List<uint>();
-        fillHeightMap(int.MaxValue);
     }
 
     // River methods
@@ -24,9 +23,8 @@ class RiverGenerator : Generator
     /// <param name="minSourceLevel">Minimum z-level for river sources</param>
     /// <param name="destinationLevel">Z-level for river desintations</param>
     /// <param name="numRivers">Number of rivers to generate</param>
-    public void GenerateRiversByPath(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int numRivers)
+    public void RiversByPath(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int numRivers)
     {
-        Reset();
         if (numRivers <= 0) return;
 
         // Create source and destination list
@@ -35,13 +33,13 @@ class RiverGenerator : Generator
             destinationList = new List<uint>();
         while (nodes.MoveNext())
         {
-            if (nodes.Current.Item.z == destinationLevel)
+            if (nodes.Current.Item.z == destinationLevel - 1)
             {
                 foreach (uint pId in terrainGenerator.Graph.Parents(nodes.Current.Key))
                 {
-                    if (terrainGenerator.Graph[pId].Item.z == destinationLevel + 1)
+                    if (terrainGenerator.Graph[pId].Item.z == destinationLevel)
                     {
-                        destinationList.Add(nodes.Current.Key);
+                        destinationList.Add(pId);
                     }
                 }
             }
@@ -50,7 +48,7 @@ class RiverGenerator : Generator
         }
 
         // Temporary variables
-        uint source, destination = uint.MaxValue;
+        uint source, destination = 0;
         Vector3Int currentVector, lastVector = new Vector3Int(-1, -1, -1);
         int randomSnowIndex,
             lastObsticalLength = obsticals.Count;
@@ -66,17 +64,16 @@ class RiverGenerator : Generator
                 // Closest destination to source
                 foreach (uint id in destinationList)
                 {
-                    if (destination == uint.MaxValue) destination = id;
+                    if (destination == 0) destination = id;
                     else if ((terrainGenerator.Graph[id].Item - currentVector).magnitude
                         < (terrainGenerator.Graph[destination].Item - currentVector).magnitude)
                         destination = id;
                 }
                 destinationList.Remove(destination);
-                GenerateRiverByPath(terrainGenerator, source, destination);
+                RiverByPath(terrainGenerator, source, destination);
                 while (lastObsticalLength < obsticals.Count)
                     sourceList.Remove(obsticals[lastObsticalLength++]);
             }
-            terrainGenerator.SetGraph(terrainGenerator.HeightMap);
         }
         return;
     }
@@ -88,34 +85,39 @@ class RiverGenerator : Generator
     /// <param name="minSourceLevel">Minimum z-level for river sources</param>
     /// <param name="destinationLevel">Z-level for river desintations</param>
     /// <param name="numRivers">Number of rivers to generate</param>
-    public void GenerateRiversByHeight(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int numRivers)
+    public void RiversByHeight(TerrainGenerator terrainGenerator, int minSourceLevel, int destinationLevel, int numRivers)
     {
-        Reset();
-        if (minSourceLevel < destinationLevel || numRivers <= 0) return;
+        if (numRivers <= 0) return;
+        if (minSourceLevel < destinationLevel) minSourceLevel = destinationLevel;
 
         var nodes = terrainGenerator.Graph.GetEnumerator();
         Dictionary<int, List<uint>> levelNodes = new Dictionary<int, List<uint>>();
         while (nodes.MoveNext())
-            if (terrainGenerator.Graph[nodes.Current.Key].Item.z >= destinationLevel || terrainGenerator.Graph[nodes.Current.Key].Item.z <= minSourceLevel)
+            if (terrainGenerator.Graph[nodes.Current.Key].Item.z >= destinationLevel - 1)
             {
                 if (!levelNodes.ContainsKey(terrainGenerator.Graph[nodes.Current.Key].Item.z))
                     levelNodes[terrainGenerator.Graph[nodes.Current.Key].Item.z] = new List<uint>();
                 levelNodes[terrainGenerator.Graph[nodes.Current.Key].Item.z].Add(nodes.Current.Key);
             }
         int maxLevel = levelNodes.Keys.Max(),
-            lastObsticalLength = obsticals.Count;
+            lastObsticalLength;
 
-        if (maxLevel < minSourceLevel || !levelNodes.ContainsKey(destinationLevel)) return;
+        if (maxLevel < minSourceLevel || !levelNodes.ContainsKey(destinationLevel - 1)) return;
 
-        int currentLevel;
+        int nodeListIndex;
         List<uint> nodeList;
         for (int i = 0; i < numRivers; ++i)
         {
-            currentLevel = Random.Range(minSourceLevel, maxLevel);
-            nodeList = levelNodes[currentLevel];
-            GenerateRiverByHeight(terrainGenerator, nodeList[Random.Range(0, nodeList.Count - 1)], destinationLevel, levelNodes);
+            lastObsticalLength = obsticals.Count;
+            nodeList = levelNodes[Random.Range(minSourceLevel, maxLevel)];
+            if (nodeList.Count <= 0) continue;
+            nodeListIndex = Random.Range(0, nodeList.Count - 1);
+            RiverByHeight(terrainGenerator, nodeList[nodeListIndex], destinationLevel, levelNodes);
+            nodeList.RemoveAt(nodeListIndex);
+            while (lastObsticalLength < obsticals.Count)
+                if (levelNodes.ContainsKey(nodeListIndex = terrainGenerator.Graph[obsticals[lastObsticalLength]].Item.z))
+                    levelNodes[nodeListIndex].Remove(obsticals[lastObsticalLength++]);
         }
-        terrainGenerator.SetGraph(terrainGenerator.HeightMap);
     }
 
     /// <summary>
@@ -126,18 +128,19 @@ class RiverGenerator : Generator
     /// <param name="destinationLevel">Z-level for river desintations</param>
     /// <param name="levelNodes">Optional z-level indexed dictionary of node ID lists (improves efficiency if reused)</param>
     /// <returns>True if river generates uninterrupted</returns>
-    public bool GenerateRiverByHeight(TerrainGenerator terrainGenerator, uint source, int destinationLevel, Dictionary<int, List<uint>> levelNodes = null)
+    public bool RiverByHeight(TerrainGenerator terrainGenerator, uint source, int destinationLevel, Dictionary<int, List<uint>> levelNodes = null)
     {
         List<uint> nodeList;
         Vector3Int currentVector;
-        uint destination;
-        int sourceLevel = terrainGenerator.HeightMap[terrainGenerator.Graph[source].Item.x, terrainGenerator.Graph[source].Item.y];
+        uint destination, parentDestination;
+        int sourceLevel = terrainGenerator.Graph[source].Item.z;
         if (levelNodes is null)
         {
             var nodes = terrainGenerator.Graph.GetEnumerator();
             levelNodes = new Dictionary<int, List<uint>>();
             while (nodes.MoveNext())
-                if (terrainGenerator.Graph[nodes.Current.Key].Item.z >= destinationLevel || terrainGenerator.Graph[nodes.Current.Key].Item.z <= sourceLevel)
+                if (terrainGenerator.Graph[nodes.Current.Key].Item.z >= destinationLevel - 1
+                    || terrainGenerator.Graph[nodes.Current.Key].Item.z <= sourceLevel)
                 {
                     if (!levelNodes.ContainsKey(terrainGenerator.Graph[nodes.Current.Key].Item.z))
                         levelNodes[terrainGenerator.Graph[nodes.Current.Key].Item.z] = new List<uint>();
@@ -146,26 +149,39 @@ class RiverGenerator : Generator
         }
 
         // Create path
-        for (int currentLevel = terrainGenerator.Graph[source].Item.z; currentLevel > destinationLevel; --currentLevel)
+        for (int currentLevel = sourceLevel; currentLevel >= destinationLevel; --currentLevel)
         {
             // Source
             nodeList = levelNodes[currentLevel];
             currentVector = terrainGenerator.Graph[source].Item;
 
-            destination = uint.MaxValue;
-            if (currentLevel - 1 >= destinationLevel)
+            destination = 0;
+            if (currentLevel >= destinationLevel - 1)
                 nodeList = levelNodes[currentLevel - 1];
+
             // Closest lower level destination to source
+            parentDestination = 0;
             foreach (uint id in nodeList)
             {
-                if (destination == uint.MaxValue) destination = id;
+                if (destination == 0) destination = id;
                 else if ((terrainGenerator.Graph[id].Item - currentVector).magnitude
                     < (terrainGenerator.Graph[destination].Item - currentVector).magnitude)
                     destination = id;
             }
             nodeList.Remove(destination);
 
-            if (!GenerateRiverByPath(terrainGenerator, source, destination, (int)levelNodes[destinationLevel][0])) return false;
+            foreach (uint parent in terrainGenerator.Graph.Parents(destination)) // More than 1 parent
+                if (terrainGenerator.Graph[parent].Item.z == currentLevel)
+                {
+                    parentDestination = parent;
+                    break;
+                }
+            if (parentDestination > 0)
+            {
+                if (!RiverByPath(terrainGenerator, source, parentDestination, levelNodes[destinationLevel + 1][0])) return false;
+            }
+            else if (!RiverByPath(terrainGenerator, source, destination, levelNodes[destinationLevel + 1][0])) return false;
+
             source = destination;
         }
         return true;
@@ -177,12 +193,11 @@ class RiverGenerator : Generator
     /// <param name="terrainGenerator">Terrain to place river</param>
     /// <param name="source">Source node ID</param>
     /// <param name="destination">Destination node ID</param>
-    /// <param name="finilPathDestination">Destination node ID if destination parameter is not final destination</param>
+    /// <param name="finalPathDestination">Destination node ID if destination parameter is not final destination</param>
     /// <returns></returns>
-    public bool GenerateRiverByPath(TerrainGenerator terrainGenerator, uint source, uint destination, int? finalPathDestination = null)
+    public bool RiverByPath(TerrainGenerator terrainGenerator, uint source, uint destination, uint? finalPathDestination = null)
     {
         if (source == destination) return true;
-
         // Temporary variables
         System.Func<uint, uint, int> heuristic = delegate (uint a, uint b)
         {
@@ -190,13 +205,11 @@ class RiverGenerator : Generator
         };
         Vector3Int waterVector, previousWaterVector = new Vector3Int(-1, -1, -1),
             destinationVector = finalPathDestination is null ?
-                terrainGenerator.Graph[(uint)finalPathDestination].Item
-                : terrainGenerator.Graph[destination].Item;
-        int terrainZ;
+                terrainGenerator.Graph[destination].Item
+                : terrainGenerator.Graph[(uint)finalPathDestination].Item;
         var path = terrainGenerator.Graph.AStar(source, destination, heuristic);
         foreach (var node in path.GetPath())
         {
-            terrainZ = terrainGenerator.Graph[node].Item.z;
             waterVector = terrainGenerator.Graph[node].Item;
             waterVector.z -= (int)((waterVector.z - destinationVector.z) * riverDepth); // Lower river vector from terrain
             if (previousWaterVector.x < 0) previousWaterVector = waterVector;
@@ -209,27 +222,43 @@ class RiverGenerator : Generator
             }
 
             // Readjust terrain if going up
-            if ((waterVector - previousWaterVector).z > 0)
+            if (waterVector.z > previousWaterVector.z)
                 waterVector.z = previousWaterVector.z;
 
             // Add node
             Graph.AddNode(waterVector);
-            HeightMap[waterVector.x, waterVector.y] = waterVector.z;
             obsticals.Add(node);
             previousWaterVector = waterVector;
 
             // Reform land
-            terrainGenerator.HeightMap[waterVector.x, waterVector.y] = waterVector.z - 1;
+            --waterVector.z;
+            terrainGenerator.Graph[node].Item = waterVector;
+            terrainGenerator.HeightMap[waterVector.x, waterVector.y] = waterVector.z;
             generateBank(terrainGenerator, node);
         }
         return true;
     }
 
-    private void generateBank(TerrainGenerator terrainGenerator, uint node)
+    public void Fill(TerrainGenerator terrainGenerator, int fillLevel)
     {
+        var nodes = terrainGenerator.Graph.GetEnumerator();
+        Vector3Int vector;
+        while (nodes.MoveNext())
+            if (nodes.Current.Item.z < fillLevel)
+                for (int z = nodes.Current.Item.z + 1; z <= fillLevel; ++z)
+                {
+                    vector = nodes.Current.Item;
+                    vector.z = z;
+                    Graph.AddNode(vector);
+                }
+    }
+
+    private void generateBank(TerrainGenerator terrainGenerator, uint node, List<uint> visited = null)
+    {
+        if (visited is null) visited = new List<uint>();
+        visited.Add(node);
         Vector3Int currentVector = terrainGenerator.Graph[node].Item,
             indexVector;
-        currentVector.z = terrainGenerator.HeightMap[currentVector.x, currentVector.y];
         // River banks
         bool bAltered = true;
         while (bAltered)
@@ -241,18 +270,18 @@ class RiverGenerator : Generator
             // of the current position
             foreach (uint parent in terrainGenerator.Graph.Parents(node))
             {
-                if (obsticals.Contains(parent)) continue;
+                if (visited.Contains(parent) || obsticals.Contains(parent)) continue;
                 indexVector = terrainGenerator.Graph[parent].Item;
-                indexVector.z = terrainGenerator.HeightMap[indexVector.x, indexVector.y];
                 // find the slope from where we are to where we are checking
-                Vector3Int fSlope = currentVector - indexVector;
-                if (fSlope.magnitude > riverSlopeMagnitude)
+                if ((currentVector - indexVector).magnitude > riverSlopeMagnitude)
                 {
                     // the slope is too big so adjust the height and keep in mind
                     // that the terrain was altered and we should make another pass
-                    --terrainGenerator.HeightMap[indexVector.x, indexVector.y];
                     bAltered = true;
-                    generateBank(terrainGenerator, parent);
+                    terrainGenerator.Graph[parent].Item = new Vector3Int(indexVector.x,
+                        indexVector.y,
+                        --terrainGenerator.HeightMap[indexVector.x, indexVector.y]);
+                    generateBank(terrainGenerator, parent, visited);
                 }
             }
         }
@@ -265,6 +294,6 @@ class RiverGenerator : Generator
     {
         base.Reset();
         obsticals.Clear();
-        fillHeightMap(int.MaxValue);
+        obsticals.TrimExcess();
     }
 }

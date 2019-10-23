@@ -8,26 +8,8 @@ public class PerlinNoise
 
     public PerlinNoise(int width, int length)
     {
-        initialize(width, length);
-    }
-    private void initialize(int width, int length)
-    {
-        gradientArray = getGradientArray(width, length);
-    }
-    static private Vector2 getGradientVector()
-    {
-        return new Vector2(
-            Random.Range(-gradientRange, gradientRange),
-            Random.Range(-gradientRange, gradientRange))
-            / gradientRange;
-    }
-    static private Vector3[,] getGradientArray(int width, int length)
-    {
-        Vector3[,] gradientArray = new Vector3[width, length];
-        for (int i = 0; i < width; ++i)
-            for (int j = 0; j < length; ++j)
-                gradientArray[i, j] = getGradientVector();
-        return gradientArray;
+        gradientArray = new Vector3[width, length];
+        ResetGradientArray();
     }
     /// <summary>
     /// Generates new noise array
@@ -36,7 +18,10 @@ public class PerlinNoise
     {
         for (int i = 0; i < gradientArray.GetLength(0); ++i)
             for (int j = 0; j < gradientArray.GetLength(1); ++j)
-                gradientArray[i, j] = getGradientVector();
+                gradientArray[i, j] = new Vector3(
+                    Random.Range(-gradientRange, gradientRange),
+                    Random.Range(-gradientRange, gradientRange))
+                    / gradientRange;
         return;
     }
     /* Function to linearly interpolate between a0 and a1
@@ -119,8 +104,8 @@ public class PerlinNoise
     public float DomainWarp(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
         const float scale = 50f, // 12.5 if using second iteration
-            offsetX = 69.420f/2,
-            offsetY = 420.69f/2;
+            offsetX = 69.420f / 2,
+            offsetY = 420.69f / 2;
         // First iteration
         float wx = x + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));
         float wy = y + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));

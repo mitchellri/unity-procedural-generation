@@ -1,8 +1,11 @@
 ﻿using Dijkstra.NET.Graph;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 class TerrainGenerator : Generator
 {
+    // Public members
+    public int[,] HeightMap { get; private set; }
     // Private members
     private PerlinNoise perlinNoise;
 
@@ -10,6 +13,7 @@ class TerrainGenerator : Generator
     public TerrainGenerator(int width, int length) : base(width, length)
     {
         perlinNoise = new PerlinNoise(width, length);
+        HeightMap = new int[width, length];
     }
 
     /// <summary>
@@ -35,28 +39,6 @@ class TerrainGenerator : Generator
                 vectorIndex.Set(x, y, z);
                 HeightMap[x, y] = z;
                 Graph.AddNode(vectorIndex);
-            }
-        }
-        setNetwork();
-    }
-
-    /// <summary>
-    /// Sets graph according to heightmap
-    /// </summary>
-    /// <param name="heightMap">Z-value 2D array equal in size to Width and Length attributes</param>
-    public void SetGraph(int[,] heightMap)
-    {
-        HeightMap = heightMap;
-        Graph = new Graph<Vector3Int, int>();
-        Vector3Int vector = new Vector3Int();
-        for (int y = 0; y < Length; ++y)
-        {
-            vector.y = y;
-            for (int x = 0; x < Width; ++x)
-            {
-                vector.x = x;
-                vector.z = heightMap[x, y];
-                Graph.AddNode(vector);
             }
         }
         setNetwork();
