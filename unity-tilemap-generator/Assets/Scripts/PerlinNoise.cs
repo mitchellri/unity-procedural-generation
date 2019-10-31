@@ -24,16 +24,7 @@ public class PerlinNoise
                     / gradientRange;
         return;
     }
-    /* Function to linearly interpolate between a0 and a1
-     * Weight w should be in the range [0.0, 1.0]
-     *
-     * as an alternative, this slightly faster equivalent function (macro) can be used:
-     * #define lerp(a0, a1, w) ((a0) + (w)*((a1) - (a0))) 
-     */
-    static private float lerp(float a0, float a1, float w)
-    {
-        return (1.0f - w) * a0 + w * a1;
-    }
+
     // Computes the dot product of the distance and gradient vectors.
     private float dotArrayGradient(int ix, int iy, float x, float y)
     {
@@ -72,12 +63,12 @@ public class PerlinNoise
         float n0, n1, ix0, ix1, value;
         n0 = dotArrayGradient(x0, y0, x, y);
         n1 = dotArrayGradient(x1, y0, x, y);
-        ix0 = lerp(n0, n1, sx);
+        ix0 = Mathf.Lerp(n0, n1, sx);
 
         n0 = dotArrayGradient(x0, y1, x, y);
         n1 = dotArrayGradient(x1, y1, x, y);
-        ix1 = lerp(n0, n1, sx);
-        value = lerp(ix0, ix1, sy);
+        ix1 = Mathf.Lerp(n0, n1, sx);
+        value = Mathf.Lerp(ix0, ix1, sy);
         return value;
     }
 

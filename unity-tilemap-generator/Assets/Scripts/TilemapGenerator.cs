@@ -137,6 +137,7 @@ public class TilemapGenerator : MonoBehaviour
         waterGenerator.Fill(terrainGenerator, WaterLevel);
         RiverMethods[RiverMethod](waterGenerator, terrainGenerator, SnowLevel, WaterLevel, NumRivers);
         Debug.Log("<color=blue><b>Water</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
+        System.GC.Collect();
         return;
     }
 
