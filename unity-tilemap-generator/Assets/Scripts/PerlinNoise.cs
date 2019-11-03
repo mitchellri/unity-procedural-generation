@@ -8,49 +8,23 @@ public class PerlinNoise
 
     public PerlinNoise(int width, int length)
     {
-        initialize(width, length);
+        gradientArray = new Vector3[width, length];
+        ResetGradientArray();
     }
-    public PerlinNoise(int width, int length, int seed)
-    {
-        Random.InitState(seed);
-        initialize(width, length);
-    }
-    private void initialize(int width, int length)
-    {
-        gradientArray = getGradientArray(width, length);
-    }
-    static private Vector2 getGradientVector()
-    {
-        return new Vector2(
-            Random.Range(-gradientRange, gradientRange),
-            Random.Range(-gradientRange, gradientRange))
-            / gradientRange;
-    }
-    static private Vector3[,] getGradientArray(int width, int length)
-    {
-        Vector3[,] gradientArray = new Vector3[width, length];
-        for (int i = 0; i < width; ++i)
-            for (int j = 0; j < length; ++j)
-                gradientArray[i, j] = getGradientVector();
-        return gradientArray;
-    }
+    /// <summary>
+    /// Generates new noise array
+    /// </summary>
     public void ResetGradientArray()
     {
         for (int i = 0; i < gradientArray.GetLength(0); ++i)
             for (int j = 0; j < gradientArray.GetLength(1); ++j)
-                gradientArray[i, j] = getGradientVector();
+                gradientArray[i, j] = new Vector3(
+                    Random.Range(-gradientRange, gradientRange),
+                    Random.Range(-gradientRange, gradientRange))
+                    / gradientRange;
         return;
     }
-    /* Function to linearly interpolate between a0 and a1
-     * Weight w should be in the range [0.0, 1.0]
-     *
-     * as an alternative, this slightly faster equivalent function (macro) can be used:
-     * #define lerp(a0, a1, w) ((a0) + (w)*((a1) - (a0))) 
-     */
-    static private float lerp(float a0, float a1, float w)
-    {
-        return (1.0f - w) * a0 + w * a1;
-    }
+
     // Computes the dot product of the distance and gradient vectors.
     private float dotArrayGradient(int ix, int iy, float x, float y)
     {
@@ -68,6 +42,10 @@ public class PerlinNoise
         return dx * gradientArray[xInd, yInd].x
             + dy * gradientArray[xInd, yInd].y;
     }
+    /// <summary>
+    /// Perlin noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float Perlin(float x, float y)
     {
         // Determine grid cell coordinates
@@ -85,14 +63,19 @@ public class PerlinNoise
         float n0, n1, ix0, ix1, value;
         n0 = dotArrayGradient(x0, y0, x, y);
         n1 = dotArrayGradient(x1, y0, x, y);
-        ix0 = lerp(n0, n1, sx);
+        ix0 = Mathf.Lerp(n0, n1, sx);
 
         n0 = dotArrayGradient(x0, y1, x, y);
         n1 = dotArrayGradient(x1, y1, x, y);
-        ix1 = lerp(n0, n1, sx);
-        value = lerp(ix0, ix1, sy);
+        ix1 = Mathf.Lerp(n0, n1, sx);
+        value = Mathf.Lerp(ix0, ix1, sy);
         return value;
     }
+
+    /// <summary>
+    /// Iterated perlin noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float FractionalBrownianMotion(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
         float sum = 0;
@@ -105,11 +88,15 @@ public class PerlinNoise
         return sum;
     }
 
+    /// <summary>
+    /// Warped fractional brownian motion noise value for 2D coordinate
+    /// </summary>
+    /// <returns>Noise value</returns>
     public float DomainWarp(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
     {
         const float scale = 50f, // 12.5 if using second iteration
-            offsetX = 69.420f/2,
-            offsetY = 420.69f/2;
+            offsetX = 69.420f / 2,
+            offsetY = 420.69f / 2;
         // First iteration
         float wx = x + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));
         float wy = y + scale * (1f - 2f * FractionalBrownianMotion(x + offsetX, y + offsetY, octaves, lacunarity, gain, amplitude, frequency));
