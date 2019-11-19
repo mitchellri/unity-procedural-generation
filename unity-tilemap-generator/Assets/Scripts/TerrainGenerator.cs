@@ -5,7 +5,9 @@ using UnityEngine.Tilemaps;
 class TerrainGenerator : Generator
 {
     // Public members
-    public int[,] HeightMap { get; private set; }
+    public float[,] HeightMap { get; private set; }
+    public float MinHeight { get; private set; }
+    public float MaxHeight { get; private set; }
     // Private members
     private PerlinNoise perlinNoise;
 
@@ -13,29 +15,32 @@ class TerrainGenerator : Generator
     public TerrainGenerator(int width, int length) : base(width, length)
     {
         perlinNoise = new PerlinNoise(width, length);
-        HeightMap = new int[width, length];
+        HeightMap = new float[width, length];
     }
 
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(int smoothness, float lacunarity, float amplitude, int octaves)
+    public void GenerateTerrain(int smoothness, float lacunarity, float amplitude, int octaves, float scale = 10f)
     {
+        MinHeight = float.MaxValue;
+        MaxHeight = float.MinValue;
         base.Reset();
-        int z;
-        Vector3Int vectorIndex = new Vector3Int();
+        float z;
+        Vector3 vectorIndex = new Vector3();
         for (int y = 0; y < Length; ++y)
         {
             for (int x = 0; x < Width; ++x)
             {
-                z = (int)Mathf.Round(
-                    perlinNoise.DomainWarp(
+                z = perlinNoise.DomainWarp(
                         x, y,
                         frequency: (float)1 / smoothness,
                         lacunarity: lacunarity,
                         amplitude: amplitude,
                         octaves: octaves
-                    ) * 10);
+                    ) * scale;
+                if (MinHeight > z) MinHeight = z;
+                if (MaxHeight < z) MaxHeight = z;
                 vectorIndex.Set(x, y, z);
                 HeightMap[x, y] = z;
                 Graph.AddNode(vectorIndex);
@@ -64,12 +69,12 @@ class TerrainGenerator : Generator
     public override void Reset()
     {
         // Base reset not required, is reset on generation
-        perlinNoise.ResetGradientArray();
+        //perlinNoise.ResetGradientArray();
         // Heightmap reset not required, it is all overwritten
     }
 
-    private int costFunction(Vector3Int movementVector)
+    private int costFunction(Vector3 movementVector)
     {
-        return movementVector.z > 0 ? 999 : movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x);
+        return Mathf.RoundToInt(movementVector.z > 0 ? 999 : movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x));
     }
 }
