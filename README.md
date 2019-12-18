@@ -1,4 +1,7 @@
 # unity-tilemap-generator
+
+![Image of tilemap](https://i.imgur.com/clDZprU.png)
+
 **This project contains submodules**, please clone recursively.
 
 ```git clone --recurse-submodules https://github.com/mitchellri/unity-tilemap-generator.git```
