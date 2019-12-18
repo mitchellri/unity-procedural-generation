@@ -76,7 +76,7 @@ public class PerlinNoise
     /// Iterated perlin noise value for 2D coordinate
     /// </summary>
     /// <returns>Noise value</returns>
-    public float FractionalBrownianMotion(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
+    public float FractionalBrownianMotion(float x, float y, int octaves, float lacunarity, float gain, float amplitude, float frequency)
     {
         float sum = 0;
         for (int i = 0; i < octaves; ++i)
@@ -92,7 +92,7 @@ public class PerlinNoise
     /// Warped fractional brownian motion noise value for 2D coordinate
     /// </summary>
     /// <returns>Noise value</returns>
-    public float DomainWarp(float x, float y, int octaves = 8, float lacunarity = 2, float gain = (float)0.5, float amplitude = 1, float frequency = 1)
+    public float DomainWarp(float x, float y, int octaves, float lacunarity, float gain, float amplitude, float frequency)
     {
         const float scale = 50f, // 12.5 if using second iteration
             offsetX = 69.420f / 2,

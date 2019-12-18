@@ -33,8 +33,8 @@ class WaterGenerator : Generator
     /// <summary>
     /// Creates rivers where excess wetness exists in terrain
     /// </summary>
-    public void FillExcessWetness(TerrainGenerator terrainGenerator, float destinationLevel, float directionInertia = .1f, float sedimentDeposit = .1f,
-        float minSlope = .1f, float sedimentCapacity = 10, float depositionSpeed = .02f, float erosionSpeed = .9f, float evaporationSpeed = .001f)
+    public void FillExcessWetness(TerrainGenerator terrainGenerator, float destinationLevel, float directionInertia, float sedimentDeposit,
+        float minSlope, float sedimentCapacity, float depositionSpeed, float erosionSpeed, float evaporationSpeed)
     {
         var nodes = terrainGenerator.Graph.GetEnumerator();
         Vector3 vector = new Vector3();

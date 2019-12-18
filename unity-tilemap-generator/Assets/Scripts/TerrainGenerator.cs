@@ -27,7 +27,7 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(int smoothness, float lacunarity, float amplitude, int octaves, float scale = 10f)
+    public void GenerateTerrain(int smoothness, float lacunarity, float gain, float amplitude, int octaves, float scale)
     {
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
@@ -38,13 +38,13 @@ class TerrainGenerator : Generator
         {
             for (int x = 0; x < Width; ++x)
             {
-                z = terrainNoise.DomainWarp(
-                        x, y,
-                        frequency: (float)1 / smoothness,
-                        lacunarity: lacunarity,
-                        amplitude: amplitude,
-                        octaves: octaves
-                    ) * scale;
+                z = terrainNoise.DomainWarp(x, y,
+                    octaves,
+                    lacunarity,
+                    gain,
+                    amplitude,
+                    (float)1 / smoothness
+                ) * scale;
                 if (MinHeight > z) MinHeight = z;
                 if (MaxHeight < z) MaxHeight = z;
                 vectorIndex.Set(x, y, z);
@@ -74,8 +74,8 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Simulates erosion on terrain
     /// </summary>
-    public void DropletErosion(float directionInertia = .1f, float sedimentDeposit = .1f, float minSlope = .1f, float sedimentCapacity = 10,
-        float depositionSpeed = .02f, float erosionSpeed = .9f, float evaporationSpeed = .001f)
+    public void DropletErosion(float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
+        float depositionSpeed, float erosionSpeed, float evaporationSpeed)
     {
         // Constants
         const float gravityX2 = 20 * 2;
@@ -282,8 +282,8 @@ class TerrainGenerator : Generator
     /// <param name="destinationLevel">Droplet will stop at this z-level</param>
     /// <param name="water">Amount of water in droplet</param>
     /// Note: Utilizing this in DropletErosion heavily impacts performance
-    public void Droplet(uint node, float destinationLevel, float directionInertia = .1f, float sedimentDeposit = .1f, float minSlope = .1f, float sedimentCapacity = 10,
-        float depositionSpeed = .02f, float erosionSpeed = .9f, float evaporationSpeed = .001f, float water = 1)
+    public void Droplet(uint node, float destinationLevel, float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
+        float depositionSpeed, float erosionSpeed, float evaporationSpeed, float water = 1)
     {
         const float gravityX2 = 20 * 2;
         uint maxMoves = (uint)Length / 4;

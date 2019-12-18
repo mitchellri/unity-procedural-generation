@@ -28,6 +28,10 @@ public class TilemapGenerator : MonoBehaviour
     [Range(0, 3)]
     [Tooltip("Length contrast.")]
     public float Amplitude = 1;
+    [Range(0, 1)]
+    [Tooltip("Octave exponential for amplitude")]
+    public float Gain = 0.5f;
+    [Tooltip("Noise multiplier")]
     public float Scale = 10;
     [Tooltip("Cannot be changed after start.")]
     public string Seed = "";
@@ -126,7 +130,7 @@ public class TilemapGenerator : MonoBehaviour
     {
         // Generate terrain
         var time = Time.realtimeSinceStartup;
-        terrainGenerator.GenerateTerrain(Smoothness, Lacunarity, Amplitude, Octaves, Scale);
+        terrainGenerator.GenerateTerrain(Smoothness, Lacunarity, Gain, Amplitude, Octaves, Scale);
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
 
