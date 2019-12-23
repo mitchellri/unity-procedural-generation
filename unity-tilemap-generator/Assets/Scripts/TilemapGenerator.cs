@@ -16,6 +16,7 @@ public class TilemapGenerator : MonoBehaviour
     public int Length;
     public float WaterLevel;
     public float SnowLevel;
+    public bool Radial = false;
 
     [Header("Noise")]
     [Tooltip("Smoothness of terrain.")]
@@ -112,8 +113,12 @@ public class TilemapGenerator : MonoBehaviour
     [ContextMenu("Refresh")]
     public void Refresh()
     {
+        var time = Time.realtimeSinceStartup;
         generate();
+        Debug.Log("<b>Map</b> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
+        time = Time.realtimeSinceStartup;
         draw();
+        Debug.Log("<b>Map</b> drawn in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
     }
 
     /// <summary>
@@ -131,6 +136,7 @@ public class TilemapGenerator : MonoBehaviour
         // Generate terrain
         var time = Time.realtimeSinceStartup;
         terrainGenerator.GenerateTerrain(Smoothness, Lacunarity, Gain, Amplitude, Octaves, Scale);
+        if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
 
