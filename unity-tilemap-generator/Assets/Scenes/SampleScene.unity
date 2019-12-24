@@ -394,15 +394,18 @@ MonoBehaviour:
   SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
   Width: 250
   Length: 250
-  WaterLevel: -1
+  WaterLevel: 1
   SnowLevel: 3
+  Radial: 1
   Smoothness: 175
   Octaves: 8
   Lacunarity: 2
   Amplitude: 1.5
+  Gain: 0.5
   Scale: 10
   Seed: 
   DropletErosion: 1
+  NaturalRivers: 1
   DirectionInertia: 0.05
   SedimentDeposit: 0.1
   MinSlope: 0.1
@@ -410,6 +413,5 @@ MonoBehaviour:
   DepositionSpeed: 0.02
   ErosionSpeed: 0.9
   EvaporationSpeed: 0.001
-  NaturalRivers: 1
-  NumRivers: 0
   RegenerateLoop: 0
+  ShowWetness: 0

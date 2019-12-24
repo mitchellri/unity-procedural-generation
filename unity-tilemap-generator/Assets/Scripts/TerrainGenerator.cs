@@ -27,34 +27,87 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(int smoothness, float lacunarity, float amplitude, int octaves, float scale = 10f)
+    public void GenerateTerrain(int smoothness, float lacunarity, float gain, float amplitude, int octaves, float scale)
     {
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
         base.Reset();
-        float z;
         Vector3 vectorIndex = new Vector3();
         for (int y = 0; y < Length; ++y)
         {
+            vectorIndex.y = y;
             for (int x = 0; x < Width; ++x)
             {
-                z = terrainNoise.DomainWarp(
-                        x, y,
-                        frequency: (float)1 / smoothness,
-                        lacunarity: lacunarity,
-                        amplitude: amplitude,
-                        octaves: octaves
-                    ) * scale;
-                if (MinHeight > z) MinHeight = z;
-                if (MaxHeight < z) MaxHeight = z;
-                vectorIndex.Set(x, y, z);
-                HeightMap[x, y] = z;
+                vectorIndex.x = x;
+                vectorIndex.z = terrainNoise.DomainWarp(x, y,
+                    octaves,
+                    lacunarity,
+                    gain,
+                    amplitude,
+                    (float)1 / smoothness
+                ) * scale;
+                if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
+                if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
+                HeightMap[x, y] = vectorIndex.z;
                 erosionMap[x, y] = 0;
                 WetnessMap[x, y] = 0;
                 Graph.AddNode(vectorIndex);
             }
         }
         setNetwork();
+    }
+
+    /// <summary>
+    /// Applies a radial filter on existing terrain
+    /// </summary>
+    public void Radial(float radiusInner, float radiusOuter, float centerX, float centerY)
+    {
+        float min = MinHeight;
+        MinHeight = float.MaxValue;
+        float max = MaxHeight;
+        MaxHeight = float.MinValue;
+        base.Reset();
+        Vector3 vectorIndex = new Vector3();
+        for (int y = 0; y < Length; ++y)
+        {
+            vectorIndex.y = y;
+            for (int x = 0; x < Width; ++x)
+            {
+                vectorIndex.x = x;
+                vectorIndex.z = Mathf.Abs(HeightMap[x, y]);
+                vectorIndex.z = radial(radiusInner, radiusOuter, centerX, centerY, vectorIndex);
+                if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
+                if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
+                HeightMap[x, y] = vectorIndex.z;
+                erosionMap[x, y] = 0;
+                WetnessMap[x, y] = 0;
+            }
+        }
+        // Height difference ratio
+        max = (max - min) / (MaxHeight - MinHeight);
+        MinHeight *= max;
+        MaxHeight *= max;
+        for (int y = 0; y < Length; ++y)
+        {
+            vectorIndex.y = y;
+            for (int x = 0; x < Width; ++x)
+            {
+                vectorIndex.x = x;
+                HeightMap[x, y] *= max;
+                vectorIndex.z = HeightMap[x, y];
+                Graph.AddNode(vectorIndex);
+            }
+        }
+        setNetwork();
+    }
+
+    private float radial(float r1, float r2, float cx, float cy, Vector3 vector)
+    {
+        float ret = 1 - (Mathf.Sqrt(Mathf.Pow((cx - vector.x) / r1, 2) + Mathf.Pow((cy - vector.y) / r1, 2)));
+        if (r1 > 0 && ret > 0) ret = Mathf.Max(-1, -ret) * 2;
+        else ret = 0;
+        ret += Mathf.Max(-1, (1 - Mathf.Sqrt(Mathf.Pow((cx - vector.x) / r2, 2) + Mathf.Pow((cy - vector.y) / r2, 2))));
+        return vector.z * ret;
     }
 
     protected void setNetwork()
@@ -74,8 +127,8 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Simulates erosion on terrain
     /// </summary>
-    public void DropletErosion(float directionInertia = .1f, float sedimentDeposit = .1f, float minSlope = .1f, float sedimentCapacity = 10,
-        float depositionSpeed = .02f, float erosionSpeed = .9f, float evaporationSpeed = .001f)
+    public void DropletErosion(float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
+        float depositionSpeed, float erosionSpeed, float evaporationSpeed)
     {
         // Constants
         const float gravityX2 = 20 * 2;
@@ -282,8 +335,8 @@ class TerrainGenerator : Generator
     /// <param name="destinationLevel">Droplet will stop at this z-level</param>
     /// <param name="water">Amount of water in droplet</param>
     /// Note: Utilizing this in DropletErosion heavily impacts performance
-    public void Droplet(uint node, float destinationLevel, float directionInertia = .1f, float sedimentDeposit = .1f, float minSlope = .1f, float sedimentCapacity = 10,
-        float depositionSpeed = .02f, float erosionSpeed = .9f, float evaporationSpeed = .001f, float water = 1)
+    public void Droplet(uint node, float destinationLevel, float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
+        float depositionSpeed, float erosionSpeed, float evaporationSpeed, float water = 1)
     {
         const float gravityX2 = 20 * 2;
         uint maxMoves = (uint)Length / 4;
