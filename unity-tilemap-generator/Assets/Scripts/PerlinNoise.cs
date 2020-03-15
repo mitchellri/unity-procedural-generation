@@ -120,13 +120,15 @@ public class PerlinNoise
         Vector3 v = gradientArray[i_x, i_y];
         return o_x * v.x + o_y * v.y;
     }
-    public float Perlin_Seamless(float x, float y, int array_period)
+    public float Perlin_Seamless(float x, float y, int array_period_x, int array_period_y)
     {
+        if (array_period_x <= 0) array_period_x = gradientArray.GetLength(0);
+        if (array_period_y <= 0) array_period_y = gradientArray.GetLength(1);
         // indexes
-        int i_x0 = (int)x % array_period;
-        int i_y0 = (int)y % array_period;
-        int i_x1 = (i_x0 + 1) % array_period;
-        int i_y1 = (i_y0 + 1) % array_period;
+        int i_x0 = (int)x % array_period_x;
+        int i_y0 = (int)y % array_period_y;
+        int i_x1 = (i_x0 + 1) % array_period_x;
+        int i_y1 = (i_y0 + 1) % array_period_y;
         // offsets
         float o_x0 = x % 1;
         float o_y0 = y % 1;
@@ -145,31 +147,46 @@ public class PerlinNoise
         float v = Mathf.Lerp(v_b, v_t, c_y);
         return v;
     }
-    public float FBM_Seamless(float x, float y, int octaves, float gain, float amplitude, int array_period)
+    public float FBM_Seamless(float x, float y, int octaves, float gain, float amplitude, int array_period_x, int array_period_y)
     {
         float sum = 0;
-        for (int i = 0; i < octaves && array_period < gradientArray.GetLength(0); ++i)
+        float frequency = 0;
+        int periodFrequency;
+        int size = gradientArray.GetLength(0);
+        if (array_period_x > 0) periodFrequency = array_period_x;
+        else if (array_period_y > 0)
         {
-            float freq = (float)array_period / gradientArray.GetLength(0);
-            sum += amplitude * Perlin_Seamless(x * freq, y * freq, array_period);
+            periodFrequency = array_period_y;
+            size = gradientArray.GetLength(1);
+        }
+        else periodFrequency = 0;
+        for (int i = 0; i < octaves && array_period_x < gradientArray.GetLength(0) && array_period_y < gradientArray.GetLength(1); ++i)
+        {
+            frequency = (float)periodFrequency / size;
+            sum += amplitude * Perlin_Seamless(x * frequency, y * frequency, array_period_x, array_period_y);
             amplitude *= gain;
-            array_period *= 2;
+            periodFrequency *= 2;
+            array_period_x *= 2;
+            array_period_y *= 2;
         }
         return sum;
     }
-    public float DW_Seamless(float x, float y, int octaves, float gain, float amplitude, int array_period)
+    public float DW_Seamless(float x, float y, int octaves, float gain, float amplitude, int array_period_x, int array_period_y)
     {
         const float scale = 12.5f;
         const float offsetX = 69.420f;
         const float offsetY = 420.69f;
 
         // First iteration
-        float wx = x + scale * FBM_Seamless(x, y, octaves, gain, amplitude, array_period);
-        float wy = y + scale * FBM_Seamless(x + offsetX, y + offsetY, octaves, gain, amplitude, array_period);
-        // wrap to safe range
-        wx = Mathf.Repeat(wx, gradientArray.GetLength(0));
-        wy = Mathf.Repeat(wy, gradientArray.GetLength(0));
+        float wx = x + scale * FBM_Seamless(x, y, octaves, gain, amplitude, array_period_x, array_period_y);
+        float wy = y + scale * FBM_Seamless(x + offsetX, y + offsetY, octaves, gain, amplitude, array_period_x, array_period_y);
+        
+        // Snap to edge
+        if (wx > gradientArray.GetLength(0)) wx = gradientArray.GetLength(0);
+        else if (wx < 0) wx = 0;
+        if (wy > gradientArray.GetLength(1)) wy = gradientArray.GetLength(1);
+        else if (wy < 0) wy = 0;
 
-        return FBM_Seamless(wx, wy, octaves, gain, amplitude, array_period);
+        return FBM_Seamless(wx, wy, octaves, gain, amplitude, array_period_x, array_period_y);
     }
 }
