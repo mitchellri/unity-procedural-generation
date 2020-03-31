@@ -20,7 +20,7 @@ public class TilemapGenerator : MonoBehaviour
 
     [Header("Noise")]
     [Tooltip("Smoothness of terrain.")]
-    public int Smoothness = 175;
+    public float InverseFrequency = 175;
     [Tooltip("Edge smoothness.")]
     public int Octaves = 8;
     [Range(0, 3)]
@@ -34,6 +34,8 @@ public class TilemapGenerator : MonoBehaviour
     public float Gain = 0.5f;
     [Tooltip("Noise multiplier")]
     public float Scale = 10;
+    public int ArrayPeriodX = 0;
+    public int ArrayPeriodY = 0;
     [Tooltip("Cannot be changed after start.")]
     public string Seed = "";
 
@@ -103,7 +105,7 @@ public class TilemapGenerator : MonoBehaviour
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3 coordinate = WorldMap.WorldToCell(mouseWorldPos);
             coordinate.z = terrainGenerator.HeightMap[(int)coordinate.x, (int)coordinate.y];
-            Debug.Log("Clicked <color=green><b>terrain</b></color> at <b>" + coordinate + "</b> with <color=blue>wetness</color> " + terrainGenerator.WetnessMap[(int)coordinate.x, (int)coordinate.y]);
+            Debug.Log("Clicked <color=green><b>terrain</b></color> at <b>" + coordinate + "</b> with <color=blue>wetness</color> " + (terrainGenerator.WetnessMap[(int)coordinate.x, (int)coordinate.y] * 100 / terrainGenerator.AbsorptionCapacity) + "%");
         }
     }
 
@@ -135,10 +137,10 @@ public class TilemapGenerator : MonoBehaviour
     {
         // Generate terrain
         var time = Time.realtimeSinceStartup;
-        terrainGenerator.GenerateTerrain(Smoothness, Lacunarity, Gain, Amplitude, Octaves, Scale);
+        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, ArrayPeriodX, ArrayPeriodY);
         if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
-        Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
+        Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b> from " + terrainGenerator.MinHeight + " to " + terrainGenerator.MaxHeight);
 
         // Generate rivers
         time = Time.realtimeSinceStartup;
