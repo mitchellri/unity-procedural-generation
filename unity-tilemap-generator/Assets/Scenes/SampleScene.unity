@@ -396,15 +396,15 @@ MonoBehaviour:
   Length: 250
   WaterLevel: 1
   SnowLevel: 3
-  Radial: 1
-  Smoothness: 175
+  Radial: 0
+  InverseFrequency: 175
   Octaves: 8
   Lacunarity: 2
   Amplitude: 1.5
   Gain: 0.5
   Scale: 10
   Seed: 
-  DropletErosion: 1
+  DropletErosion: 0
   NaturalRivers: 1
   DirectionInertia: 0.05
   SedimentDeposit: 0.1
@@ -415,3 +415,5 @@ MonoBehaviour:
   EvaporationSpeed: 0.001
   RegenerateLoop: 0
   ShowWetness: 0
+  ArrayPeriodX: 2
+  ArrayPeriodY: 2
