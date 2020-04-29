@@ -46,10 +46,8 @@ class TerrainGenerator : Generator
                 HeightMap[x, y] = vectorIndex.z;
                 erosionMap[x, y] = 0;
                 WetnessMap[x, y] = 0;
-                Graph.AddNode(vectorIndex);
             }
         }
-        setNetwork();
     }
 
     /// <summary>
@@ -90,10 +88,8 @@ class TerrainGenerator : Generator
                 vectorIndex.x = x;
                 HeightMap[x, y] *= max;
                 vectorIndex.z = HeightMap[x, y];
-                Graph.AddNode(vectorIndex);
             }
         }
-        setNetwork();
     }
 
     private float radial(float r1, float r2, float cx, float cy, Vector3 vector)
@@ -103,20 +99,6 @@ class TerrainGenerator : Generator
         else ret = 0;
         ret += Mathf.Max(-1, (1 - Mathf.Sqrt(Mathf.Pow((cx - vector.x) / r2, 2) + Mathf.Pow((cy - vector.y) / r2, 2))));
         return vector.z * ret;
-    }
-
-    protected void setNetwork()
-    {
-        int ix, iy;
-        for (uint i = 1; i <= Width * Length; ++i)
-        {
-            ix = (int)((i - 1) % Width);
-            iy = (int)((i - 1) / Width);
-            if (ix + 1 < Width) Graph.Connect(i, i + 1, costFunction(Graph[i + 1].Item - Graph[i].Item), 0);
-            if (ix - 1 >= 0) Graph.Connect(i, i - 1, costFunction(Graph[i - 1].Item - Graph[i].Item), 0);
-            if (iy + 1 < Length) Graph.Connect(i, (uint)(i + Width), costFunction(Graph[(uint)(i + Width)].Item - Graph[i].Item), 0);
-            if (iy - 1 >= 0) Graph.Connect(i, (uint)(i - Width), costFunction(Graph[(uint)(i - Width)].Item - Graph[i].Item), 0);
-        }
     }
 
     /// <summary>
@@ -146,16 +128,14 @@ class TerrainGenerator : Generator
             sedimentCount,
             vectorXFloat, vectorYFloat,
             totalAbsorbtionRate;
-        uint node;
 
         uint iterations = (uint)(Length * Width),
             maxMoves = (uint)Length;
         for (int iteration = 0; iteration < iterations; ++iteration)
         {
             // Random location
-            node = (uint)(Random.Range(0, Length) + Random.Range(0, Width) * Width) + 1;
-            vectorX = (int)Graph[node].Item.x;
-            vectorY = (int)Graph[node].Item.y;
+            vectorX = Random.Range(0, Width);
+            vectorY = Random.Range(0, Length);
             vectorZ = HeightMap[vectorX, vectorY];
             previousX = vectorX;
             previousY = vectorY;
@@ -320,7 +300,6 @@ class TerrainGenerator : Generator
                 vectorZ11 = nextZ11;
             }
         }
-        heightMapToGraph();
     }
 
     /// <summary>
@@ -330,7 +309,7 @@ class TerrainGenerator : Generator
     /// <param name="destinationLevel">Droplet will stop at this z-level</param>
     /// <param name="water">Amount of water in droplet</param>
     /// Note: Utilizing this in DropletErosion heavily impacts performance
-    public void Droplet(uint node, float destinationLevel, float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
+    public void Droplet(int x, int y, float destinationLevel, float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
         float depositionSpeed, float erosionSpeed, float evaporationSpeed, float water = 1)
     {
         const float gravityX2 = 20 * 2;
@@ -338,8 +317,7 @@ class TerrainGenerator : Generator
         // Variables
         int[] direction = new int[2] { -1, 1 };
         float[,] precipitationMap = new float[Width, Length];
-        int vectorX, vectorY,
-            previousX, previousY,
+        int previousX, previousY,
             nextXInt, nextYInt;
         float directionX = 0, directionY = 0,
             vectorZ,
@@ -355,50 +333,48 @@ class TerrainGenerator : Generator
             vectorXFloat, vectorYFloat,
             totalAbsorbtionRate = 0;
 
-        vectorX = (int)Graph[node].Item.x;
-        vectorY = (int)Graph[node].Item.y;
-        if (vectorX + 1 >= Width || vectorY + 1 >= Length) return;
-        vectorZ = HeightMap[vectorX, vectorY];
-        previousX = vectorX;
-        previousY = vectorY;
+        if (x + 1 >= Width || y + 1 >= Length) return;
+        vectorZ = HeightMap[x, y];
+        previousX = x;
+        previousY = y;
         vectorXFloat = 0;
         vectorYFloat = 0;
         sediment = 0;
         speed = 0;
         vectorZ00 = vectorZ;
-        vectorZ10 = HeightMap[vectorX + 1, vectorY];
-        vectorZ01 = HeightMap[vectorX, vectorY + 1];
-        vectorZ11 = HeightMap[vectorX + 1, vectorY + 1];
+        vectorZ10 = HeightMap[x + 1, y];
+        vectorZ01 = HeightMap[x, y + 1];
+        vectorZ11 = HeightMap[x + 1, y + 1];
         maxMoves = (uint)Length / 4;
         uint numMoves;
         for (numMoves = 0; vectorZ > destinationLevel && numMoves < maxMoves; ++numMoves)
         {
             // Absorb water
-            if (WetnessMap[vectorX, vectorY] < AbsorptionCapacity)
+            if (WetnessMap[x, y] < AbsorptionCapacity)
             {
-                WetnessMap[vectorX, vectorY] += water * absorptionRate / 4;
+                WetnessMap[x, y] += water * absorptionRate / 4;
                 totalAbsorbtionRate += absorptionRate / 4;
             }
             else // Carry excess water
             {
-                float excess = (WetnessMap[vectorX, vectorY] - AbsorptionCapacity);
-                float transfer = excess * (water - WetnessMap[vectorX, vectorY]) * WaterGain;
+                float excess = (WetnessMap[x, y] - AbsorptionCapacity);
+                float transfer = excess * (water - WetnessMap[x, y]) * WaterGain;
                 water += transfer;
-                WetnessMap[vectorX, vectorY] -= transfer;
+                WetnessMap[x, y] -= transfer;
             }
-            if (WetnessMap[vectorX + 1, vectorY] < AbsorptionCapacity)
+            if (WetnessMap[x + 1, y] < AbsorptionCapacity)
             {
-                WetnessMap[vectorX + 1, vectorY] += water * absorptionRate / 4;
+                WetnessMap[x + 1, y] += water * absorptionRate / 4;
                 totalAbsorbtionRate += absorptionRate / 4;
             }
-            if (WetnessMap[vectorX, vectorY + 1] < AbsorptionCapacity)
+            if (WetnessMap[x, y + 1] < AbsorptionCapacity)
             {
-                WetnessMap[vectorX, vectorY + 1] += water * absorptionRate / 4;
+                WetnessMap[x, y + 1] += water * absorptionRate / 4;
                 totalAbsorbtionRate += absorptionRate / 4;
             }
-            if (WetnessMap[vectorX + 1, vectorY + 1] < AbsorptionCapacity)
+            if (WetnessMap[x + 1, y + 1] < AbsorptionCapacity)
             {
-                WetnessMap[vectorX + 1, vectorY + 1] += water * absorptionRate / 4;
+                WetnessMap[x + 1, y + 1] += water * absorptionRate / 4;
                 totalAbsorbtionRate += absorptionRate / 4;
             }
             water *= 1 - totalAbsorbtionRate;
@@ -450,11 +426,11 @@ class TerrainGenerator : Generator
                 {
                     // Deposit all sediment and stop
                     sedimentCount = sediment;
-                    vectorZ = deposit(vectorZ, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                    vectorZ = deposit(vectorZ, sedimentCount, x, y, vectorXFloat, vectorYFloat);
                     sediment = 0;
                     break;
                 }
-                vectorZ = deposit(vectorZ, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                vectorZ = deposit(vectorZ, sedimentCount, x, y, vectorXFloat, vectorYFloat);
                 sediment -= sedimentCount;
                 speed = 0;
             }
@@ -469,7 +445,7 @@ class TerrainGenerator : Generator
                 sedimentCount *= depositionSpeed;
                 if (vectorXFloat < 0 || vectorXFloat > 1) Debug.LogError(vectorXFloat + " vectorXFloat not between 0 and 1");
                 if (vectorYFloat < 0 || vectorYFloat > 1) Debug.LogError(vectorYFloat + " vectorYFloat not between 0 and 1");
-                zDifference = deposit(zDifference, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                zDifference = deposit(zDifference, sedimentCount, x, y, vectorXFloat, vectorYFloat);
                 sediment -= sedimentCount;
             }
             else
@@ -478,13 +454,13 @@ class TerrainGenerator : Generator
                 sedimentCount *= -erosionSpeed;
                 sedimentCount = Mathf.Min(sedimentCount, zDifference * 0.99f);
                 float wi;
-                for (int yi = vectorY - 1; yi <= vectorY + 2; ++yi)
+                for (int yi = y - 1; yi <= y + 2; ++yi)
                 {
                     if (yi < 1 || yi >= Length - 1) continue;
                     float zo = yi - previousY;
                     float zo2 = zo * zo;
 
-                    for (int xi = vectorX - 1; xi <= vectorX + 2; ++xi)
+                    for (int xi = x - 1; xi <= x + 2; ++xi)
                     {
                         if (xi < 1 || xi >= Width - 1) continue;
                         float xo = xi - previousX;
@@ -503,7 +479,7 @@ class TerrainGenerator : Generator
             water *= 1 - evaporationSpeed;
 
             previousX = Mathf.RoundToInt(nextXPrevious); previousY = Mathf.RoundToInt(nextYPrevious);
-            vectorX = nextXInt; vectorY = nextYInt;
+            x = nextXInt; y = nextYInt;
             vectorXFloat = nextXFloat; vectorYFloat = nextYFloat;
 
             vectorZ = nextZ;
@@ -512,8 +488,6 @@ class TerrainGenerator : Generator
             vectorZ01 = nextZ01;
             vectorZ11 = nextZ11;
         }
-
-        heightMapToGraph();
     }
 
     private void depositAt(int x, int y, float w, float ds)
@@ -547,14 +521,6 @@ class TerrainGenerator : Generator
             if (x < 0 || x >= Width) return;
         }
         erosionMap[x, y] = d;
-    }
-
-    private void heightMapToGraph()
-    {
-        for (int i = 0; i < Width; ++i)
-            for (int j = 0; j < Length; ++j)
-                if (HeightMap[i, j] != Graph[(uint)(j + i * Length) + 1].Item.z)
-                    Graph[(uint)(j + i * Length) + 1].Item = new Vector3(i, j, HeightMap[i, j]);
     }
 
     /// <summary>

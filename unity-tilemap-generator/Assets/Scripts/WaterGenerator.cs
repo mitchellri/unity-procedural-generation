@@ -3,14 +3,13 @@ using System.Collections.Generic;
 
 class WaterGenerator : Generator
 {
-    public uint[,] idMap { get; private set; }
+    public float[,] HeightMap { get; private set; }
     public float MinHeight;
     public float MaxHeight;
     public WaterGenerator(int width, int length) : base(width, length)
     {
-        idMap = new uint[width, length];
-        MinHeight = float.MaxValue;
-        MaxHeight = float.MinValue;
+        HeightMap = new float[width, length];
+        Reset();
     }
 
     /// <summary>
@@ -20,14 +19,10 @@ class WaterGenerator : Generator
     {
         if (MinHeight > fillLevel) MinHeight = fillLevel;
         if (MaxHeight < fillLevel) MaxHeight = fillLevel;
-        var nodes = terrainGenerator.Graph.GetEnumerator();
-        Vector3 vector = new Vector3();
-        while (nodes.MoveNext())
-            if (nodes.Current.Item.z < fillLevel)
-            {
-                vector.Set(nodes.Current.Item.x, nodes.Current.Item.y, fillLevel);
-                idMap[(int)nodes.Current.Item.x, (int)nodes.Current.Item.y] = Graph.AddNode(vector);
-            }
+        for (int x = 0; x < Width; ++x)
+            for (int y = 0; y < Length; ++y)
+                if (terrainGenerator.HeightMap[x, y] < fillLevel)
+                    HeightMap[x, y] = fillLevel;
     }
 
     /// <summary>
@@ -36,33 +31,26 @@ class WaterGenerator : Generator
     public void FillExcessWetness(TerrainGenerator terrainGenerator, float destinationLevel, float directionInertia, float sedimentDeposit,
         float minSlope, float sedimentCapacity, float depositionSpeed, float erosionSpeed, float evaporationSpeed)
     {
-        var nodes = terrainGenerator.Graph.GetEnumerator();
-        Vector3 vector = new Vector3();
-        int i, j;
-        while (nodes.MoveNext())
-        {
-            i = (int)nodes.Current.Item.x;
-            j = (int)nodes.Current.Item.y;
-            if (terrainGenerator.HeightMap[i, j] >= destinationLevel
-                && terrainGenerator.WetnessMap[i, j] > terrainGenerator.AbsorptionCapacity)
-            {
-                vector.Set(i, j, nodes.Current.Item.z + terrainGenerator.WetnessMap[i, j] - terrainGenerator.AbsorptionCapacity);
-                idMap[i, j] = Graph.AddNode(vector);
-                if (MinHeight > vector.z) MinHeight = vector.z;
-                if (MaxHeight < vector.z) MaxHeight = vector.z;
-            }
-        }
+        for (int x = 0; x < Width; ++x)
+            for (int y = 0; y < Length; ++y)
+                if (terrainGenerator.HeightMap[x, y] >= destinationLevel
+                    && terrainGenerator.WetnessMap[x, y] > terrainGenerator.AbsorptionCapacity)
+                {
+                    HeightMap[x, y] = terrainGenerator.HeightMap[x, y] + terrainGenerator.WetnessMap[x, y] - terrainGenerator.AbsorptionCapacity;
+                    if (MinHeight > HeightMap[x, y]) MinHeight = HeightMap[x, y];
+                    if (MaxHeight < HeightMap[x, y]) MaxHeight = HeightMap[x, y];
+                }
     }
 
     /// <summary>
-    /// Sets graph, obsticals, heightmap to default values
+    /// Sets HeightMap, man and max height to default values
     /// </summary>
     public override void Reset()
     {
         base.Reset();
-        for (int i = 0; i < idMap.GetLength(0); ++i)
-            for (int j = 0; j < idMap.GetLength(1); ++j)
-                idMap[i, j] = 0;
+        for (int i = 0; i < HeightMap.GetLength(0); ++i)
+            for (int j = 0; j < HeightMap.GetLength(1); ++j)
+                HeightMap[i, j] = float.MinValue;
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
     }

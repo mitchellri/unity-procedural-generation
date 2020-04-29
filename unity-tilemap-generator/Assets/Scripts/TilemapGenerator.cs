@@ -90,14 +90,7 @@ public class TilemapGenerator : MonoBehaviour
         {
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3 coordinate = WorldMap.WorldToCell(mouseWorldPos);
-            coordinate.z = -999;
-            foreach (var a in waterGenerator.Graph)
-            {
-                if (a.Item.x == coordinate.x && a.Item.y == coordinate.y && a.Item.z > coordinate.z)
-                {
-                    coordinate.z = a.Item.z;
-                }
-            }
+            coordinate.z = waterGenerator.HeightMap[(int)coordinate.x, (int)coordinate.y];
             Debug.Log("Clicked <color=blue><b>water</b></color> at <b>" + coordinate + "</b>");
         }
         if (Input.GetMouseButtonUp(1))
@@ -158,19 +151,28 @@ public class TilemapGenerator : MonoBehaviour
         // Clear
         WorldMap.ClearAllTiles();
 
-        // Terrain
-        var nodes = terrainGenerator.Graph.GetEnumerator();
+        Vector3 vector = new Vector3();
         Tile tile;
-        while (nodes.MoveNext())
+        for (int x = 0; x < Width; ++x)
         {
-            if (nodes.Current.Item.z >= SnowLevel) tile = SnowTile;
-            else tile = FloorTile;
-            setTile(WorldMap, nodes.Current.Item, tile);
-        }
+            vector.x = x;
+            for (int y = 0; y < Length; ++y)
+            {
+                vector.y = y;
+                vector.z = terrainGenerator.HeightMap[x, y];
 
-        // Water
-        nodes = waterGenerator.Graph.GetEnumerator();
-        while (nodes.MoveNext()) setTile(WorldMap, nodes.Current.Item, WaterTile);
+                if (vector.z >= SnowLevel) tile = SnowTile;
+                else tile = FloorTile;
+
+                setTile(WorldMap, vector, tile);
+
+                if (waterGenerator.HeightMap[x, y] > float.MinValue)
+                {
+                    vector.z = waterGenerator.HeightMap[x, y];
+                    setTile(WorldMap, vector, WaterTile);
+                }
+            }
+        }
     }
 
     private void setTile(Tilemap tileMap, Vector3 vector, Tile tile, float? colorZ = null)
