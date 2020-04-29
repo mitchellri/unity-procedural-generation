@@ -6,7 +6,7 @@ class WaterGenerator : Generator
     public float[,] HeightMap { get; private set; }
     public float MinHeight;
     public float MaxHeight;
-    public WaterGenerator(int width, int length) : base(width, length)
+    public WaterGenerator(int width, int length, int height) : base(width, length, height)
     {
         HeightMap = new float[width, length];
         Reset();

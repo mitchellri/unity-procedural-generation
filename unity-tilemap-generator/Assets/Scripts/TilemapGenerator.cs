@@ -14,6 +14,7 @@ public class TilemapGenerator : MonoBehaviour
     [Header("Map")]
     public int Width;
     public int Length;
+    public int Height;
     public float WaterLevel;
     public float SnowLevel;
     public bool Radial = false;
@@ -66,6 +67,7 @@ public class TilemapGenerator : MonoBehaviour
     [Header("Development")]
     public bool RegenerateLoop = false;
     public bool ShowWetness = false;
+    public int Z;
 
     // Private members
     private TerrainGenerator terrainGenerator;
@@ -75,8 +77,8 @@ public class TilemapGenerator : MonoBehaviour
     void Start()
     {
         Random.InitState(Seed.GetHashCode());
-        terrainGenerator = new TerrainGenerator(Width, Length);
-        waterGenerator = new WaterGenerator(Width, Length);
+        terrainGenerator = new TerrainGenerator(Width, Length, Height);
+        waterGenerator = new WaterGenerator(Width, Length, Height);
         Refresh();
     }
 
@@ -86,6 +88,16 @@ public class TilemapGenerator : MonoBehaviour
     {
         if (RegenerateLoop) Regenerate();
         else if (Input.GetKeyUp(KeyCode.Space)) Regenerate();
+        if (Input.GetKey(KeyCode.Equals))
+        {
+            Z += 1;
+            Refresh();
+        }
+        else if (Input.GetKey(KeyCode.Minus))
+        {
+            Z -= 1;
+            Refresh();
+        }
         if (Input.GetMouseButtonUp(0))
         {
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
@@ -130,7 +142,7 @@ public class TilemapGenerator : MonoBehaviour
     {
         // Generate terrain
         var time = Time.realtimeSinceStartup;
-        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, ArrayPeriodX, ArrayPeriodY);
+        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, ArrayPeriodX, ArrayPeriodY, Z);
         if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b> from " + terrainGenerator.MinHeight + " to " + terrainGenerator.MaxHeight);

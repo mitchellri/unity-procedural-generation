@@ -16,9 +16,9 @@ class TerrainGenerator : Generator
     private float[,] erosionMap;
 
     // Constructors
-    public TerrainGenerator(int width, int length) : base(width, length)
+    public TerrainGenerator(int width, int length, int height) : base(width, length, height)
     {
-        terrainNoise = new PerlinNoise(width, length);
+        terrainNoise = new PerlinNoise(width, length, height);
         HeightMap = new float[width, length];
         erosionMap = new float[width, length];
         WetnessMap = new float[width, length];
@@ -27,7 +27,7 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, int periodX = 0, int periodY = 0)
+    public void GenerateTerrain(float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, int periodX = 0, int periodY = 0, int z = 0)
     {
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
@@ -39,8 +39,9 @@ class TerrainGenerator : Generator
             for (int x = 0; x < Width; ++x)
             {
                 vectorIndex.x = x;
+                // Terrain (heightmap) only, z level 0
                 if (periodX > 0 || periodY > 0) vectorIndex.z = terrainNoise.DW_Seamless(x, y, octaves, gain, amplitude, periodX, periodY) * scale;
-                else vectorIndex.z = terrainNoise.DomainWarp(x, y, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency) * scale;
+                else vectorIndex.z = terrainNoise.DomainWarp(x, y, z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency) * scale;
                 if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
                 if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
                 HeightMap[x, y] = vectorIndex.z;
