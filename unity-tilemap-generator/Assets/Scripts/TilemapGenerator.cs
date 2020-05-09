@@ -35,8 +35,9 @@ public class TilemapGenerator : MonoBehaviour
     public float Gain = 0.5f;
     [Tooltip("Noise multiplier")]
     public float Scale = 10;
-    public int ArrayPeriodX = 0;
-    public int ArrayPeriodY = 0;
+    public int PeriodX = 0;
+    public int PeriodY = 0;
+    public int PeriodZ = 0;
     [Tooltip("Cannot be changed after start.")]
     public string Seed = "";
 
@@ -142,7 +143,7 @@ public class TilemapGenerator : MonoBehaviour
     {
         // Generate terrain
         var time = Time.realtimeSinceStartup;
-        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, ArrayPeriodX, ArrayPeriodY, Z);
+        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, PeriodX, PeriodY, PeriodZ, Z);
         if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b> from " + terrainGenerator.MinHeight + " to " + terrainGenerator.MaxHeight);

@@ -27,7 +27,7 @@ class TerrainGenerator : Generator
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, int periodX = 0, int periodY = 0, int z = 0)
+    public void GenerateTerrain(float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, int periodX = 0, int periodY = 0, int periodZ = 0, int z = 0)
     {
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
@@ -40,7 +40,7 @@ class TerrainGenerator : Generator
             {
                 vectorIndex.x = x;
                 // Terrain (heightmap) only, z level 0
-                if (periodX > 0 || periodY > 0) vectorIndex.z = terrainNoise.DW_Seamless(x, y, octaves, gain, amplitude, periodX, periodY) * scale;
+                if (periodX > 0 || periodY > 0) vectorIndex.z = terrainNoise.DW_Seamless(x, y, z, octaves, gain, amplitude, periodX, periodY, periodZ) * scale;
                 else vectorIndex.z = terrainNoise.DomainWarp(x, y, z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency) * scale;
                 if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
                 if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
