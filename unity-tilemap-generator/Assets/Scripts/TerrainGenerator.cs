@@ -12,6 +12,7 @@ class TerrainGenerator : Generator
     public float WaterGain { get; private set; } = 0.25f;
     // Private members
     private PerlinNoise terrainNoise;
+    private PerlinNoise wormNoise;
     private float absorptionRate = 0.00085f; // change to map
     private float[,] erosionMap;
 
@@ -19,6 +20,7 @@ class TerrainGenerator : Generator
     public TerrainGenerator(int width, int length, int height) : base(width, length, height)
     {
         terrainNoise = new PerlinNoise(width, length, height);
+        wormNoise = new PerlinNoise(width, length, height);
         HeightMap = new float[width, length];
         erosionMap = new float[width, length];
         WetnessMap = new float[width, length];
@@ -524,14 +526,138 @@ class TerrainGenerator : Generator
         erosionMap[x, y] = d;
     }
 
+    /// Note: http://libnoise.sourceforge.net/examples/worms/index.html
+    public void GenerateCave(int x, int y, int z, int caveLength, float twistiness, int radius, float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, float radiusVarianceScale = 0)
+    {
+        float speed = radius - 1;
+        if (speed < 1) speed = 1;
+        float lateralSpeed = 10f;
+        Vector3 speedMod = new Vector3(1, 1, 0.5f);
+        Vector3 lateralSpeedMod = new Vector3(1, 1, 2);
+        Vector3 headOffset = new Vector3();
+
+        float noiseValue;
+        float variedRadius;
+        int variedRadiusInt = 0;
+        Vector3 radiusVarianceOffset = new Vector3(
+            Random.Range(0, Width),
+            Random.Range(0, Length),
+            Random.Range(0, Height)
+            );
+
+        Vector3 headNoisePos = new Vector3(x, y, z - 10);
+        Vector3 headScreenPos = new Vector3(x, y, z - 10);
+        Vector2Int headScreenPosInt = new Vector2Int();
+
+        for (int curSegment = 0; curSegment < caveLength; ++curSegment)
+        {
+            // The angle of the head segment is used to determine the direction the worm
+            // moves.  The worm moves in the opposite direction.
+            noiseValue = wormNoise.DomainWarp(headNoisePos.x + curSegment * twistiness, headNoisePos.y, headNoisePos.z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency);
+            headOffset.Set(
+                    Mathf.Cos(noiseValue * 2 * Mathf.PI) * speed,
+                    Mathf.Sin(noiseValue * 2 * Mathf.PI) * speed,
+                    Mathf.Atan(noiseValue * 2 * Mathf.PI) * speed
+                );
+            headScreenPos -= Vector3.Scale(headOffset, speedMod);
+
+            // Slightly update the coordinates of the input value, in "noise space".
+            // This causes the worm's shape to be slightly different in the next frame.
+            // The x coordinate of the input value is shifted in a negative direction,
+            // which propagates the previous Perlin-noise values over to subsequent
+            // segments.  This produces a "slithering" effect.
+            headOffset.Set(
+                    -speed * 2,
+                    lateralSpeed,
+                    lateralSpeed
+                );
+            headNoisePos += Vector3.Scale(headOffset, lateralSpeedMod);
+
+            // Make sure the worm's head is within the window, otherwise the worm may
+            // escape.  Horrible, horrible freedom!
+            if (headScreenPos.x > Width || headScreenPos.x < 0) continue;
+            if (headScreenPos.y > Length || headScreenPos.y < 0) continue;
+            headScreenPos.x = Mathf.Clamp(headScreenPos.x, 0, Width - 1);
+            headScreenPos.y = Mathf.Clamp(headScreenPos.y, 0, Length - 1);
+
+            headScreenPosInt.Set(
+                (int)headScreenPos.x,
+                (int)headScreenPos.y
+                );
+
+            variedRadius = radius;
+
+            if (radiusVarianceScale != 0)
+            {
+                noiseValue = wormNoise.DomainWarp((headNoisePos.x + radiusVarianceOffset.x) + curSegment * twistiness, headNoisePos.y + radiusVarianceOffset.y, headNoisePos.z + radiusVarianceOffset.z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency);
+                if (variedRadius == 0)
+                {
+                    variedRadius = (0.5f - noiseValue) * radiusVarianceScale;
+                }
+                else
+                {
+                    variedRadius += radius * (0.5f - noiseValue) * radiusVarianceScale;
+                }
+            }
+            
+            // Remove land at head of worm
+            if (variedRadius <= 0)
+            {
+                if (headScreenPos.z > HeightMap[headScreenPosInt.x, headScreenPosInt.y]) continue;
+                HeightMap[headScreenPosInt.x, headScreenPosInt.y] = headScreenPos.z;
+            }
+            else
+            {
+                if (variedRadius < 1)
+                {
+                    if (headScreenPos.z < HeightMap[headScreenPosInt.x, headScreenPosInt.y])
+                        HeightMap[headScreenPosInt.x, headScreenPosInt.y] = headScreenPos.z;
+                    variedRadiusInt = 0;
+                }
+                // Thiccness of worm
+                else
+                {
+                    variedRadiusInt = (int)variedRadius;
+                    for (int i = -variedRadiusInt; i < variedRadiusInt; ++i)
+                    {
+                        if (headScreenPosInt.x + i >= Width || headScreenPosInt.x + i < 0) continue;
+                        for (int j = -variedRadiusInt; j < variedRadiusInt; ++j)
+                        {
+                            if (headScreenPosInt.y + j >= Length || headScreenPosInt.y + j < 0) continue;
+                            for (int k = -variedRadiusInt; k < variedRadiusInt; ++k)
+                            {
+                                if (i * i + j * j + k * k <= variedRadius * variedRadius
+                                    && headScreenPos.z + k < HeightMap[headScreenPosInt.x + i, headScreenPosInt.y + j])
+                                {
+                                    HeightMap[headScreenPosInt.x + i, headScreenPosInt.y + j] = headScreenPos.z + k;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Move to end of radius
+                speed = (radius - variedRadiusInt) - 1;
+                if (speed < 1)
+                {
+                    speed = 1;
+                }
+            }
+
+            if (HeightMap[headScreenPosInt.x, headScreenPosInt.y] < MinHeight)
+                MinHeight = HeightMap[headScreenPosInt.x, headScreenPosInt.y];
+        }
+    }
+
     /// <summary>
     /// Resets noise
     /// </summary>
     public override void Reset()
     {
-        // Base reset not required, is reset on generation
+        base.Reset();
         terrainNoise.ResetGradientArray();
-        // Map resets not required, it is all overwritten
+        wormNoise.ResetGradientArray();
+        HeightMap = new float[Width, Length];
     }
 
     private int costFunction(Vector3 movementVector)

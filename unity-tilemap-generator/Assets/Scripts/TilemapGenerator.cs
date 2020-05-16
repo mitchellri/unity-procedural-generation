@@ -17,6 +17,7 @@ public class TilemapGenerator : MonoBehaviour
     public int Height;
     public float WaterLevel;
     public float SnowLevel;
+    public bool Flood = true;
     public bool Radial = false;
 
     [Header("Noise")]
@@ -65,6 +66,13 @@ public class TilemapGenerator : MonoBehaviour
     [Tooltip("Rate of water evaporation.")]
     public float EvaporationSpeed = .001f;
 
+    [Header("Caves")]
+    public int NumCaves = 0;
+    public int SegmentLength = 50;
+    public float Twistiness = 10;
+    public int Radius = 3;
+    public float RadiusVarianceScale = 0;
+
     [Header("Development")]
     public bool RegenerateLoop = false;
     public bool ShowWetness = false;
@@ -97,6 +105,16 @@ public class TilemapGenerator : MonoBehaviour
         else if (Input.GetKey(KeyCode.Minus))
         {
             Z -= 1;
+            Refresh();
+        }
+        if (Input.GetKey(KeyCode.Q))
+        {
+            SegmentLength -= 1;
+            Refresh();
+        }
+        else if (Input.GetKey(KeyCode.E))
+        {
+            SegmentLength += 1;
             Refresh();
         }
         if (Input.GetMouseButtonUp(0))
@@ -145,13 +163,25 @@ public class TilemapGenerator : MonoBehaviour
         var time = Time.realtimeSinceStartup;
         terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, PeriodX, PeriodY, PeriodZ, Z);
         if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
+        // Pos variables
+        int x, y;
+        x = Width / 2;
+        y = Length / 2;
+        for (int curCave = 0; curCave < NumCaves; ++curCave)
+        {
+            /*x = Random.Range(Width / 4, Width * 3 / 4);
+            y = Random.Range(Length / 4, Length * 3 / 4);*/
+            terrainGenerator.GenerateCave(x, y, (int)terrainGenerator.HeightMap[x, y], SegmentLength, Twistiness, Radius, InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, RadiusVarianceScale);
+            x = Random.Range(0, Width - 1);
+            y = Random.Range(0, Length - 1);
+        }
         if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b> from " + terrainGenerator.MinHeight + " to " + terrainGenerator.MaxHeight);
 
         // Generate rivers
         time = Time.realtimeSinceStartup;
         waterGenerator.Reset();
-        waterGenerator.Fill(terrainGenerator, WaterLevel);
+        if (Flood) waterGenerator.Fill(terrainGenerator, WaterLevel);
         if (NaturalRivers)
             waterGenerator.FillExcessWetness(terrainGenerator, WaterLevel, DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
         Debug.Log("<color=blue><b>Water</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
