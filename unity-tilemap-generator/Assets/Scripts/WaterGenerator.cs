@@ -34,7 +34,7 @@ class WaterGenerator : Generator
         for (int x = 0; x < Width; ++x)
             for (int y = 0; y < Length; ++y)
                 if (terrainGenerator.HeightMap[x, y] >= destinationLevel
-                    && terrainGenerator.WetnessMap[x, y] > terrainGenerator.AbsorptionCapacity)
+                    && terrainGenerator.WetnessMap[x, y] >= terrainGenerator.AbsorptionCapacity)
                 {
                     HeightMap[x, y] = terrainGenerator.HeightMap[x, y] + terrainGenerator.WetnessMap[x, y] - terrainGenerator.AbsorptionCapacity;
                     if (MinHeight > HeightMap[x, y]) MinHeight = HeightMap[x, y];

@@ -104,6 +104,69 @@ class TerrainGenerator : Generator
         return vector.z * ret;
     }
 
+    private void absorbAt(Vector3 vector, ref float water)
+    {
+        Vector3Int vectorInt = new Vector3Int(
+            (int)vector.x,
+            (int)vector.y,
+            (int)vector.z
+            );
+        float waterTransferCapacty = water * absorptionRate / 4,
+            remainingCapacity, transferCapacity;
+        for (int x = vectorInt.x; x < vectorInt.x + 2; ++x)
+        {
+            for (int y = vectorInt.y; y < vectorInt.y + 2; ++y)
+            {
+                if (WetnessMap[x, y] < AbsorptionCapacity)
+                {
+                    remainingCapacity = Mathf.Max(0, AbsorptionCapacity - WetnessMap[x, y]);
+                    transferCapacity = Mathf.Min(waterTransferCapacty, remainingCapacity);
+                    WetnessMap[x, y] += transferCapacity;
+                    water -= transferCapacity;
+                }
+            }
+        }
+    }
+
+    private float[,] getGradient(Vector3 vector)
+    {
+        Vector3Int vectorInt = new Vector3Int(
+            (int)vector.x,
+            (int)vector.y,
+            (int)vector.z
+            );
+        return new float[2, 2] {
+            { vector.z, HeightMap[vectorInt.x, vectorInt.y + 1] },
+            { HeightMap[vectorInt.x + 1, vectorInt.y], HeightMap[vectorInt.x + 1, vectorInt.y + 1] }
+        };
+    }
+
+    private void setMovingDirection(float[,] gradient, float directionInertia, ref Vector3 direction)
+    {
+        int[] directions = new int[2] { -1, 1 };
+        float gradientX = gradient[0, 0] + gradient[0, 1] - gradient[1, 0] - gradient[1, 1],
+            gradientY = gradient[0, 0] + gradient[1, 0] - gradient[0, 1] - gradient[1, 1];
+        direction.Set(
+                (direction.x - gradientX) * directionInertia + gradientX,
+                (direction.y - gradientY) * directionInertia + gradientY,
+                0
+            );
+
+        float magnitude = Mathf.Sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        if (magnitude <= Mathf.Epsilon)
+        {
+            // Not moving - pick random direction
+            direction.x = directions[Random.Range(0, 2)];
+            direction.y = directions[Random.Range(0, 2)];
+        }
+        else
+        {
+            direction.x /= magnitude;
+            direction.y /= magnitude;
+            direction.z /= magnitude;
+        }
+    }
+
     /// <summary>
     /// Simulates erosion on terrain
     /// </summary>
@@ -112,418 +175,177 @@ class TerrainGenerator : Generator
     {
         // Constants
         const float gravityX2 = 20 * 2;
-        int[] direction = new int[2] { -1, 1 };
 
         // Variables
-        int vectorX, vectorY,
-            previousX, previousY,
-            nextXInt, nextYInt;
-        float directionX = 0, directionY = 0,
-            vectorZ,
-            vectorZ00, vectorZ10, vectorZ01, vectorZ11,
-            nextXPrevious, nextYPrevious,
-            nextZ00, nextZ10, nextZ01, nextZ11,
-            gradientX, gradientY,
-            nextXFloat, nextYFloat,
-            nextZ,
-            sediment, speed, water,
-            zDifference,
-            sedimentCount,
-            vectorXFloat, vectorYFloat,
-            totalAbsorbtionRate;
+        Vector3 position = new Vector3(),
+            positionRemainder = new Vector3(),
+            nextPosition = new Vector3(),
+            nextPositionRemainder = new Vector3(),
+            direction = new Vector3(),
+            transport = new Vector3();
+        float[,] gradient = new float[2, 2];
+        float sediment, sedimentCount, speed, water;
 
-        uint iterations = (uint)(Length * Width),
+        uint dropletCount = (uint)(Length * Width),
             maxMoves = (uint)Length;
-        for (int iteration = 0; iteration < iterations; ++iteration)
+        for (int dropletIndex = 0; dropletIndex < dropletCount; ++dropletIndex)
         {
-            // Random location
-            vectorX = Random.Range(0, Width);
-            vectorY = Random.Range(0, Length);
-            vectorZ = HeightMap[vectorX, vectorY];
-            previousX = vectorX;
-            previousY = vectorY;
-            vectorXFloat = 0;
-            vectorYFloat = 0;
+            // Droplet location
+            position.Set(
+                Random.Range(0, Width),
+                Random.Range(0, Length),
+                0
+            );
+            position.z = HeightMap[(int)position.x, (int)position.y];
+
+            // Reset tracking parameters
             sediment = 0;
             speed = 0;
             water = 1;
-            totalAbsorbtionRate = 0;
 
-            // Neighbour vectorZ values
-            if (vectorX + 1 >= Width || vectorY + 1 >= Length)
+            // Neighbour position.z values
+            if (position.x + 1 >= Width || position.y + 1 >= Length)
             {
-                --iteration;
+                --dropletIndex;
                 continue;
             }
-            vectorZ00 = vectorZ;
-            vectorZ10 = HeightMap[vectorX + 1, vectorY];
-            vectorZ01 = HeightMap[vectorX, vectorY + 1];
-            vectorZ11 = HeightMap[vectorX + 1, vectorY + 1];
+            gradient = getGradient(position);
 
-            // Interpolated gradient
+            // Moving droplet
             for (uint numMoves = 0; numMoves < maxMoves; ++numMoves)
             {
-                if (WetnessMap[vectorX, vectorY] < AbsorptionCapacity)
-                {
-                    WetnessMap[vectorX, vectorY] += water * absorptionRate / 4;
-                    totalAbsorbtionRate += absorptionRate / 4;
-                }
-                else
-                {
-                    float excess = (WetnessMap[vectorX, vectorY] - AbsorptionCapacity);
-                    float transfer = excess * (water - WetnessMap[vectorX, vectorY]) * WaterGain;
-                    water += transfer;
-                    WetnessMap[vectorX, vectorY] -= transfer;
-                }
-                if (WetnessMap[vectorX + 1, vectorY] < AbsorptionCapacity)
-                {
-                    WetnessMap[vectorX + 1, vectorY] += water * absorptionRate / 4;
-                    totalAbsorbtionRate += absorptionRate / 4;
-                }
-                if (WetnessMap[vectorX, vectorY + 1] < AbsorptionCapacity)
-                {
-                    WetnessMap[vectorX, vectorY + 1] += water * absorptionRate / 4;
-                    totalAbsorbtionRate += absorptionRate / 4;
-                }
-                if (WetnessMap[vectorX + 1, vectorY + 1] < AbsorptionCapacity)
-                {
-                    WetnessMap[vectorX + 1, vectorY + 1] += water * absorptionRate / 4;
-                    totalAbsorbtionRate += absorptionRate / 4;
-                }
-                water *= 1 - totalAbsorbtionRate;
+                // Surrounding ground absorbs water
+                absorbAt(position, ref water);
 
-                gradientX = vectorZ00 + vectorZ01 - vectorZ10 - vectorZ11;
-                gradientY = vectorZ00 + vectorZ10 - vectorZ01 - vectorZ11;
+                // Droplet moves downhill with inertia
+                setMovingDirection(gradient, directionInertia, ref direction);
+
                 // Next position
-                directionX = (directionX - gradientX) * directionInertia + gradientX;
-                directionY = (directionY - gradientY) * directionInertia + gradientY;
+                nextPosition = position + direction;
+                if (Mathf.FloorToInt(nextPosition.x) < 0 || Mathf.FloorToInt(nextPosition.x) + 1 >= Width || Mathf.FloorToInt(nextPosition.y) < 0 || Mathf.FloorToInt(nextPosition.y) + 1 >= Length) break; // Stop droplet if off map
 
-                float magnitude = Mathf.Sqrt(directionX * directionX + directionY * directionY);
-                if (magnitude <= Mathf.Epsilon)
-                {
-                    // Pick random direction
-                    directionX = direction[Random.Range(0, 2)];
-                    directionY = direction[Random.Range(0, 2)];
-                }
-                else
-                {
-                    directionX /= magnitude;
-                    directionY /= magnitude;
-                }
+                // Gradient modifiers
+                nextPositionRemainder.x = nextPosition.x % 1;
+                nextPositionRemainder.y = nextPosition.y % 1;
+                if (nextPositionRemainder.x < 0) nextPositionRemainder.x = 0;
+                if (nextPositionRemainder.y < 0) nextPositionRemainder.y = 0;
 
-                nextXPrevious = previousX + directionX;
-                nextYPrevious = previousY + directionY;
+                // Deposited height of new point
+                gradient = getGradient(new Vector3(nextPosition.x, nextPosition.y, HeightMap[Mathf.FloorToInt(nextPosition.x), Mathf.FloorToInt(nextPosition.y)]));
+                nextPosition.z = (gradient[0, 0] * (1 - nextPositionRemainder.x) + gradient[1, 0] * nextPositionRemainder.x) * (1 - nextPositionRemainder.y) + (gradient[0, 1] * (1 - nextPositionRemainder.x) + gradient[1, 1] * nextPositionRemainder.x) * nextPositionRemainder.y;
 
-                // Sample next height
-                nextXInt = Mathf.FloorToInt(nextXPrevious);
-                nextYInt = Mathf.FloorToInt(nextYPrevious);
-                nextXFloat = nextXPrevious - nextXInt;
-                nextYFloat = nextYPrevious - nextYInt;
-                if (nextXFloat < 0) nextXFloat = 0;
-                if (nextYFloat < 0) nextYFloat = 0;
-                // Neighbour of new point
-                if (nextXInt < 0 || nextXInt + 1 >= Width || nextYInt < 0 || nextYInt + 1 >= Length)
-                    break;
-                nextZ00 = HeightMap[nextXInt, nextYInt];
-                nextZ10 = HeightMap[nextXInt + 1, nextYInt];
-                nextZ01 = HeightMap[nextXInt, nextYInt + 1];
-                nextZ11 = HeightMap[nextXInt + 1, nextYInt + 1];
-
-                // New height
-                nextZ = (nextZ00 * (1 - nextXFloat) + nextZ10 * nextXFloat) * (1 - nextYFloat) + (nextZ01 * (1 - nextXFloat) + nextZ11 * nextXFloat) * nextYFloat;
                 // If higher than current, try to deposit sediment up to neighbour height
-                if (nextZ >= vectorZ)
+                if (nextPosition.z >= position.z)
                 {
-                    sedimentCount = (nextZ - vectorZ) + sedimentDeposit;
+                    sedimentCount = (nextPosition.z - position.z) + sedimentDeposit;
                     if (sedimentCount >= sediment)
                     {
                         // Deposit all sediment and stop
                         sedimentCount = sediment;
-                        vectorZ = deposit(vectorZ, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                        deposit(sedimentCount, positionRemainder, ref position);
                         sediment = 0;
                         break;
                     }
-                    vectorZ = deposit(vectorZ, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                    deposit(sedimentCount, positionRemainder, ref position);
                     sediment -= sedimentCount;
                     speed = 0;
                 }
 
                 // Transport capacity
-                zDifference = vectorZ - nextZ;
+                transport.Set(
+                    position.x,
+                    position.y,
+                    position.z - nextPosition.z
+                    );
+                sedimentCount = sediment - Mathf.Max(transport.z, minSlope) * speed * water * sedimentCapacity;
 
-                // deposit/erode (don't erode more than zDifference)
-                sedimentCount = sediment - Mathf.Max(zDifference, minSlope) * speed * water * sedimentCapacity;
+                // Deposit/erode
                 if (sedimentCount >= 0)
                 {
                     sedimentCount *= depositionSpeed;
-                    if (vectorXFloat < 0 || vectorXFloat > 1) Debug.LogError(vectorXFloat + " vectorXFloat not between 0 and 1");
-                    if (vectorYFloat < 0 || vectorYFloat > 1) Debug.LogError(vectorYFloat + " vectorYFloat not between 0 and 1");
-                    zDifference = deposit(zDifference, sedimentCount, vectorX, vectorY, vectorXFloat, vectorYFloat);
+                    deposit(sedimentCount, positionRemainder, ref transport);
                     sediment -= sedimentCount;
                 }
                 else
                 {
-                    // erode
+                    // Don't erode more than transport.z
                     sedimentCount *= -erosionSpeed;
-                    sedimentCount = Mathf.Min(sedimentCount, zDifference * 0.99f);
+                    sedimentCount = Mathf.Min(sedimentCount, transport.z * 0.99f);
                     float wi;
+
                     // Eroding the edge of the map results in pits
-                    for (int yi = vectorY - 1; yi <= vectorY + 2; ++yi)
+                    for (int yi = (int)position.y - 1; yi < position.y + 2; ++yi)
                     {
                         if (yi < 1 || yi >= Length - 1) continue;
-                        float zo = yi - previousY;
+                        float zo = yi - position.y;
                         float zo2 = zo * zo;
 
-                        for (int xi = vectorX - 1; xi <= vectorX + 2; ++xi)
+                        for (int xi = (int)position.x - 1; xi < position.x + 2; ++xi)
                         {
                             if (xi < 1 || xi >= Width - 1) continue;
-                            float xo = xi - previousX;
+                            float xo = xi - position.x;
                             wi = 1 - (xo * xo + zo2) * 0.25f;
                             if (wi <= 0) continue;
                             wi *= 0.1591549430918953f;
-                            erode(sedimentCount, xi, yi, wi);
+                            erode(sedimentCount, wi, new Vector3(xi, yi, position.z));
                         }
                     }
-                    zDifference -= sedimentCount;
+                    transport.z -= sedimentCount;
                     sediment += sedimentCount;
                 }
 
-                // move to the neighbour
-                speed = Mathf.Sqrt(speed * speed + gravityX2 * zDifference);
+                // Update water
+                speed = Mathf.Sqrt(speed * speed + gravityX2 * transport.z);
                 water *= 1 - evaporationSpeed;
 
-                previousX = Mathf.RoundToInt(nextXPrevious); previousY = Mathf.RoundToInt(nextYPrevious);
-                vectorX = nextXInt; vectorY = nextYInt;
-                vectorXFloat = nextXFloat; vectorYFloat = nextYFloat;
-
-                vectorZ = nextZ;
-                vectorZ00 = nextZ00;
-                vectorZ10 = nextZ10;
-                vectorZ01 = nextZ01;
-                vectorZ11 = nextZ11;
+                // Move to neighbour
+                position = nextPosition;
+                positionRemainder = nextPositionRemainder;
             }
         }
     }
 
-    /// <summary>
-    /// Simluates a droplet that erodes terrain
-    /// </summary>
-    /// <param name="node">Source node for droplet</param>
-    /// <param name="destinationLevel">Droplet will stop at this z-level</param>
-    /// <param name="water">Amount of water in droplet</param>
-    /// Note: Utilizing this in DropletErosion heavily impacts performance
-    public void Droplet(int x, int y, float destinationLevel, float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
-        float depositionSpeed, float erosionSpeed, float evaporationSpeed, float water = 1)
+    private void depositAt(Vector3Int vector, float w, float deltaSediment)
     {
-        const float gravityX2 = 20 * 2;
-        uint maxMoves = (uint)Length / 4;
-        // Variables
-        int[] direction = new int[2] { -1, 1 };
-        float[,] precipitationMap = new float[Width, Length];
-        int previousX, previousY,
-            nextXInt, nextYInt;
-        float directionX = 0, directionY = 0,
-            vectorZ,
-            vectorZ00, vectorZ10, vectorZ01, vectorZ11,
-            nextXPrevious, nextYPrevious,
-            nextZ00, nextZ10, nextZ01, nextZ11,
-            gradientX, gradientY,
-            nextXFloat, nextYFloat,
-            nextZ,
-            sediment, speed,
-            zDifference = 0,
-            sedimentCount,
-            vectorXFloat, vectorYFloat,
-            totalAbsorbtionRate = 0;
-
-        if (x + 1 >= Width || y + 1 >= Length) return;
-        vectorZ = HeightMap[x, y];
-        previousX = x;
-        previousY = y;
-        vectorXFloat = 0;
-        vectorYFloat = 0;
-        sediment = 0;
-        speed = 0;
-        vectorZ00 = vectorZ;
-        vectorZ10 = HeightMap[x + 1, y];
-        vectorZ01 = HeightMap[x, y + 1];
-        vectorZ11 = HeightMap[x + 1, y + 1];
-        maxMoves = (uint)Length / 4;
-        uint numMoves;
-        for (numMoves = 0; vectorZ > destinationLevel && numMoves < maxMoves; ++numMoves)
-        {
-            // Absorb water
-            if (WetnessMap[x, y] < AbsorptionCapacity)
-            {
-                WetnessMap[x, y] += water * absorptionRate / 4;
-                totalAbsorbtionRate += absorptionRate / 4;
-            }
-            else // Carry excess water
-            {
-                float excess = (WetnessMap[x, y] - AbsorptionCapacity);
-                float transfer = excess * (water - WetnessMap[x, y]) * WaterGain;
-                water += transfer;
-                WetnessMap[x, y] -= transfer;
-            }
-            if (WetnessMap[x + 1, y] < AbsorptionCapacity)
-            {
-                WetnessMap[x + 1, y] += water * absorptionRate / 4;
-                totalAbsorbtionRate += absorptionRate / 4;
-            }
-            if (WetnessMap[x, y + 1] < AbsorptionCapacity)
-            {
-                WetnessMap[x, y + 1] += water * absorptionRate / 4;
-                totalAbsorbtionRate += absorptionRate / 4;
-            }
-            if (WetnessMap[x + 1, y + 1] < AbsorptionCapacity)
-            {
-                WetnessMap[x + 1, y + 1] += water * absorptionRate / 4;
-                totalAbsorbtionRate += absorptionRate / 4;
-            }
-            water *= 1 - totalAbsorbtionRate;
-
-            gradientX = vectorZ00 + vectorZ01 - vectorZ10 - vectorZ11;
-            gradientY = vectorZ00 + vectorZ10 - vectorZ01 - vectorZ11;
-            // Next position
-            directionX = (directionX - gradientX) * directionInertia + gradientX;
-            directionY = (directionY - gradientY) * directionInertia + gradientY;
-
-            float magnitude = Mathf.Sqrt(directionX * directionX + directionY * directionY);
-            if (magnitude <= Mathf.Epsilon)
-            {
-                // Pick random direction
-                directionX = direction[Random.Range(0, 2)];
-                directionY = direction[Random.Range(0, 2)];
-            }
-            else
-            {
-                directionX /= magnitude;
-                directionY /= magnitude;
-            }
-
-            nextXPrevious = previousX + directionX;
-            nextYPrevious = previousY + directionY;
-
-            // Sample next height
-            nextXInt = Mathf.FloorToInt(nextXPrevious);
-            nextYInt = Mathf.FloorToInt(nextYPrevious);
-            nextXFloat = nextXPrevious - nextXInt;
-            nextYFloat = nextYPrevious - nextYInt;
-            if (nextXFloat < 0) nextXFloat = 0;
-            if (nextYFloat < 0) nextYFloat = 0;
-            // Neighbour of new point
-            if (nextXInt < 0 || nextXInt + 1 >= Width || nextYInt < 0 || nextYInt + 1 >= Length)
-                break;
-            nextZ00 = HeightMap[nextXInt, nextYInt];
-            nextZ10 = HeightMap[nextXInt + 1, nextYInt];
-            nextZ01 = HeightMap[nextXInt, nextYInt + 1];
-            nextZ11 = HeightMap[nextXInt + 1, nextYInt + 1];
-
-            // New height
-            nextZ = (nextZ00 * (1 - nextXFloat) + nextZ10 * nextXFloat) * (1 - nextYFloat) + (nextZ01 * (1 - nextXFloat) + nextZ11 * nextXFloat) * nextYFloat;
-            // If higher than current, try to deposit sediment up to neighbour height
-            if (nextZ >= vectorZ)
-            {
-                sedimentCount = (nextZ - vectorZ) + sedimentDeposit;
-                if (sedimentCount >= sediment)
-                {
-                    // Deposit all sediment and stop
-                    sedimentCount = sediment;
-                    vectorZ = deposit(vectorZ, sedimentCount, x, y, vectorXFloat, vectorYFloat);
-                    sediment = 0;
-                    break;
-                }
-                vectorZ = deposit(vectorZ, sedimentCount, x, y, vectorXFloat, vectorYFloat);
-                sediment -= sedimentCount;
-                speed = 0;
-            }
-
-            // Transport capacity
-            zDifference = vectorZ - nextZ;
-
-            // deposit/erode (don't erode more than zDifference)
-            sedimentCount = sediment - Mathf.Max(zDifference, minSlope) * speed * water * sedimentCapacity;
-            if (sedimentCount >= 0)
-            {
-                sedimentCount *= depositionSpeed;
-                if (vectorXFloat < 0 || vectorXFloat > 1) Debug.LogError(vectorXFloat + " vectorXFloat not between 0 and 1");
-                if (vectorYFloat < 0 || vectorYFloat > 1) Debug.LogError(vectorYFloat + " vectorYFloat not between 0 and 1");
-                zDifference = deposit(zDifference, sedimentCount, x, y, vectorXFloat, vectorYFloat);
-                sediment -= sedimentCount;
-            }
-            else
-            {
-                // erode
-                sedimentCount *= -erosionSpeed;
-                sedimentCount = Mathf.Min(sedimentCount, zDifference * 0.99f);
-                float wi;
-                for (int yi = y - 1; yi <= y + 2; ++yi)
-                {
-                    if (yi < 1 || yi >= Length - 1) continue;
-                    float zo = yi - previousY;
-                    float zo2 = zo * zo;
-
-                    for (int xi = x - 1; xi <= x + 2; ++xi)
-                    {
-                        if (xi < 1 || xi >= Width - 1) continue;
-                        float xo = xi - previousX;
-                        wi = 1 - (xo * xo + zo2) * 0.25f;
-                        if (wi <= 0) continue;
-                        wi *= 0.1591549430918953f;
-                        erode(sedimentCount, xi, yi, wi);
-                    }
-                }
-                zDifference -= sedimentCount;
-                sediment += sedimentCount;
-            }
-
-            // move to the neighbour
-            speed = Mathf.Sqrt(speed * speed + gravityX2 * zDifference);
-            water *= 1 - evaporationSpeed;
-
-            previousX = Mathf.RoundToInt(nextXPrevious); previousY = Mathf.RoundToInt(nextYPrevious);
-            x = nextXInt; y = nextYInt;
-            vectorXFloat = nextXFloat; vectorYFloat = nextYFloat;
-
-            vectorZ = nextZ;
-            vectorZ00 = nextZ00;
-            vectorZ10 = nextZ10;
-            vectorZ01 = nextZ01;
-            vectorZ11 = nextZ11;
-        }
+        float delta = w * deltaSediment;
+        erosionMap[vector.x, vector.y] += delta;
+        HeightMap[vector.x, vector.y] += delta;
     }
 
-    private void depositAt(int x, int y, float w, float ds)
+    private void deposit(float deltaSediment, Vector3 vectorRemainder, ref Vector3 vector)
     {
-        float delta = w * ds;
-        erosionMap[x, y] += delta;
-        HeightMap[x, y] += delta;
+        Vector3Int vectorInt = new Vector3Int(
+            (int)vector.x,
+            (int)vector.y,
+            (int)vector.z
+            );
+        depositAt(vectorInt, (1 - vectorRemainder.x) * (1 - vectorRemainder.y), deltaSediment);
+        if (vectorInt.x + 1 < Width) depositAt(vectorInt + new Vector3Int(1, 0, 0), vectorRemainder.x * (1 - vectorRemainder.y), deltaSediment);
+        if (vectorInt.y + 1 < Length) depositAt(vectorInt + new Vector3Int(0, 1, 0), (1 - vectorRemainder.x) * vectorRemainder.y, deltaSediment);
+        if (vectorInt.x + 1 < Width && vectorInt.y + 1 < Length) depositAt(vectorInt + new Vector3Int(1, 1, 0), vectorRemainder.x * vectorRemainder.y, deltaSediment);
+        vector.z += deltaSediment;
     }
 
-    private float deposit(float z, float ds, int xi, int yi, float xf, float yf)
+    private void erode(float ds, float w, Vector3 vector)
     {
-        depositAt(xi, yi, (1 - xf) * (1 - yf), ds);
-        if (xi + 1 < Width) depositAt(xi + 1, yi, xf * (1 - yf), ds);
-        if (yi + 1 < Length) depositAt(xi, yi + 1, (1 - xf) * yf, ds);
-        if (xi + 1 < Width && yi + 1 < Length) depositAt(xi + 1, yi + 1, xf * yf, ds);
-        return z + ds;
-    }
-
-    private void erode(float ds, int x, int y, float w)
-    {
+        Vector3Int vectorInt = new Vector3Int(
+            (int)vector.x,
+            (int)vector.y,
+            (int)vector.z
+            );
         float delta = ds * w;
-        float temp = HeightMap[x, y] -= delta;
-        float r = x;
-        float d = erosionMap[x, y];
+        float temp = HeightMap[vectorInt.x, vectorInt.y] -= delta;
+        float r = vector.x;
+        float d = erosionMap[vectorInt.x, vectorInt.y];
         if (delta <= d) d -= delta;
         else
         {
             r += delta - d;
             d = 0;
-            x = Mathf.RoundToInt(r);
-            if (x < 0 || x >= Width) return;
+            vector.x = Mathf.RoundToInt(r);
+            if (vector.x < 0 || vector.x >= Width) return;
         }
-        erosionMap[x, y] = d;
+        erosionMap[vectorInt.x, vectorInt.y] = d;
     }
 
     /// Note: http://libnoise.sourceforge.net/examples/worms/index.html
@@ -599,7 +421,7 @@ class TerrainGenerator : Generator
                     variedRadius += radius * (0.5f - noiseValue) * radiusVarianceScale;
                 }
             }
-            
+
             // Remove land at head of worm
             if (variedRadius <= 0)
             {
