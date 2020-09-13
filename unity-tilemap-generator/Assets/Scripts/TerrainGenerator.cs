@@ -1,107 +1,256 @@
-﻿using System.Collections.Generic;
-using UnityEngine;
+﻿using UnityEngine;
 
 class TerrainGenerator : Generator
 {
     // Public members
-    public float[,] HeightMap { get; private set; }
-    public float[,] WetnessMap { get; private set; }
-    public float MinHeight { get; private set; }
-    public float MaxHeight { get; private set; }
-    public float AbsorptionCapacity { get; private set; } = 0.015f; // change to map
+    public float[,,] WetnessMap { get; private set; }
+    public float RangeHeight { get; private set; }
+    public float AbsorptionCapacity { get; private set; } = 0.015f;
     public float WaterGain { get; private set; } = 0.25f;
-    // Private members
-    private PerlinNoise terrainNoise;
-    private PerlinNoise wormNoise;
-    private float absorptionRate = 0.00085f; // change to map
-    private float[,] erosionMap;
 
-    // Constructors
-    public TerrainGenerator(int width, int length, int height) : base(width, length, height)
+    // Public parameters
+    public new int Width
     {
-        terrainNoise = new PerlinNoise(width, length, height);
-        wormNoise = new PerlinNoise(width, length, height);
-        HeightMap = new float[width, length];
-        erosionMap = new float[width, length];
-        WetnessMap = new float[width, length];
+        get
+        {
+            return width;
+        }
+        set
+        {
+            if (Width != value)
+            {
+                width = value;
+                if (Width > 0 && Length > 0)
+                {
+                    heightMapNoise = new PerlinNoise(Width, Length, 1);
+                    if (Height > 0)
+                    {
+                        caveNoise = new PerlinNoise(Width, Length, Height);
+                    }
+                }
+                else
+                {
+                    caveNoise = null;
+                    heightMapNoise = null;
+                }
+            }
+        }
+    }
+    public override int Length
+    {
+        get
+        {
+            return length;
+        }
+        set
+        {
+            if (Length != value)
+            {
+                length = value;
+                if (Width > 0 && Length > 0)
+                {
+                    heightMapNoise = new PerlinNoise(Width, Length, 1);
+                    if (Height > 0)
+                    {
+                        caveNoise = new PerlinNoise(Width, Length, Height);
+                    }
+                }
+                else
+                {
+                    caveNoise = null;
+                    heightMapNoise = null;
+                }
+            }
+        }
+    }
+    public override int Height
+    {
+        get
+        {
+            return height;
+        }
+        set
+        {
+            if (Height != value)
+            {
+                height = value;
+                if (Width > 0 && Length > 0 && Height > 0)
+                {
+                    caveNoise = new PerlinNoise(Width, Length, Height);
+                }
+                else
+                {
+                    caveNoise = null;
+                }
+            }
+        }
+    }
+    /// <summary>
+    /// Height below generated terrain
+    /// </summary>
+    public int UndergroundHeight;
+    /// <summary>
+    /// Height above generated terrain
+    /// </summary>
+    public int SkyHeight;
+    // Noise parameters
+    public float InverseFrequency;
+    public float Lacunarity;
+    public float Gain;
+    public float Amplitude;
+    public float Scale;
+    public int Octaves;
+    // Seamless parameters
+    public Vector3Int Period;
+    // Radial parameters
+    public float RadiusInner;
+    public float RadiusOuter;
+    public Vector2Int RadiusCenter;
+    // Cave parameters
+    public float CaveRadiusVarianceScale;
+    public float CaveRadius;
+    public float CaveTwistiness;
+    public float CaveSegmentLength;
+    // Erosion parameters
+    public float DirectionInertia;
+    public float SedimentDeposit;
+    public float MinSlope;
+    public float SedimentCapacity;
+    public float DepositionSpeed;
+    public float ErosionSpeed;
+    public float EvaporationSpeed;
+
+    // Private members
+    private int width;
+    private int length;
+    private int height;
+    private float[,,] erosionMap;
+    private const float absorptionRate = 0.00085f;
+    // Noise members
+    private PerlinNoise heightMapNoise;
+    private PerlinNoise caveNoise;
+
+    public TerrainGenerator()
+    {
+        Period = new Vector3Int();
     }
 
     /// <summary>
     /// Generates terrain to class attributes
     /// </summary>
-    public void GenerateTerrain(float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, int periodX = 0, int periodY = 0, int periodZ = 0, int z = 0)
+    public void GenerateTerrain(bool seamless = false, bool radial = false)
     {
         MinHeight = float.MaxValue;
         MaxHeight = float.MinValue;
-        base.Reset();
-        Vector3 vectorIndex = new Vector3();
+
+        float[,] heightMap = new float[Width, Length];
+        RangeHeight = applyHeightMap(ref heightMap, radial, seamless);
+        MinHeight = UndergroundHeight;
+        MaxHeight = UndergroundHeight + RangeHeight;
+        Height = UndergroundHeight + Mathf.CeilToInt(RangeHeight + 1) + SkyHeight;
+        WorldMap = new float[Width, Length, Height];
+        WetnessMap = new float[Width, Length, Height];
+        erosionMap = new float[Width, Length, Height];
+
+        float z;
+        int zInt;
         for (int y = 0; y < Length; ++y)
         {
-            vectorIndex.y = y;
             for (int x = 0; x < Width; ++x)
             {
-                vectorIndex.x = x;
-                // Terrain (heightmap) only, z level 0
-                if (periodX > 0 || periodY > 0) vectorIndex.z = terrainNoise.DW_Seamless(x, y, z, octaves, gain, amplitude, periodX, periodY, periodZ) * scale;
-                else vectorIndex.z = terrainNoise.DomainWarp(x, y, z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency) * scale;
-                if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
-                if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
-                HeightMap[x, y] = vectorIndex.z;
-                erosionMap[x, y] = 0;
-                WetnessMap[x, y] = 0;
+                z = heightMap[x, y] + UndergroundHeight;
+                zInt = (int)z;
+                WorldMap[x, y, zInt] = z - zInt;
+
+                for (--zInt; zInt >= 0; --zInt)
+                {
+                    WorldMap[x, y, zInt] = 1;
+                }
             }
         }
+    }
+
+    /// <returns>Total height of new heightMap</returns>
+    private float applyHeightMap(ref float[,] heightMap, bool radial, bool seamless)
+    {
+        float height = 0;
+        float minHeight = float.MaxValue,
+            maxHeight = float.MinValue;
+        for (int x = 0; x < heightMap.GetLength(0); ++x)
+        {
+            for (int y = 0; y < heightMap.GetLength(1); ++y)
+            {
+                if (seamless) heightMap[x, y] = heightMapNoise.DW_Seamless(x, y, 0, Octaves, Gain, Amplitude, Period.x, Period.y, Period.z) * Scale;
+                else heightMap[x, y] = heightMapNoise.DomainWarp(x, y, 0, Octaves, Lacunarity, Gain, Amplitude, 1 / InverseFrequency) * Scale;
+                if (minHeight > heightMap[x, y]) minHeight = heightMap[x, y];
+                if (maxHeight < heightMap[x, y]) maxHeight = heightMap[x, y];
+            }
+        }
+
+        if (radial)
+        {
+            applyRadial(ref heightMap, ref minHeight, ref maxHeight);
+        }
+
+        height = maxHeight - minHeight;
+
+        for (int x = 0; x < heightMap.GetLength(0); ++x)
+        {
+            for (int y = 0; y < heightMap.GetLength(1); ++y)
+            {
+                heightMap[x, y] = Mathf.Max(float.Epsilon, heightMap[x, y] - minHeight); // Always floor at 0
+            }
+        }
+
+        return height;
     }
 
     /// <summary>
-    /// Applies a radial filter on existing terrain
+    /// Applies a radial filter on a heightMap
     /// </summary>
-    public void Radial(float radiusInner, float radiusOuter, float centerX, float centerY)
+    /// <param name="minHeight">Mimimum height of heightMap being passed</param>
+    /// <param name="maxHeight">Maximum height of heightMap being passed</param>
+    /// <returns>Total height of new heightMap</returns>
+    private float applyRadial(ref float[,] heightMap, ref float minHeight, ref float maxHeight)
     {
-        float min = MinHeight;
-        MinHeight = float.MaxValue;
-        float max = MaxHeight;
-        MaxHeight = float.MinValue;
-        base.Reset();
-        Vector3 vectorIndex = new Vector3();
-        for (int y = 0; y < Length; ++y)
+        float newMinHeight = float.MaxValue,
+            newMaxHeight = float.MinValue;
+        Vector3 vector = new Vector3();
+        for (int x = 0; x < heightMap.GetLength(0); ++x)
         {
-            vectorIndex.y = y;
-            for (int x = 0; x < Width; ++x)
+            vector.x = x;
+            for (int y = 0; y < heightMap.GetLength(1); ++y)
             {
-                vectorIndex.x = x;
-                vectorIndex.z = Mathf.Abs(HeightMap[x, y]);
-                vectorIndex.z = radial(radiusInner, radiusOuter, centerX, centerY, vectorIndex);
-                if (MinHeight > vectorIndex.z) MinHeight = vectorIndex.z;
-                if (MaxHeight < vectorIndex.z) MaxHeight = vectorIndex.z;
-                HeightMap[x, y] = vectorIndex.z;
-                erosionMap[x, y] = 0;
-                WetnessMap[x, y] = 0;
+                vector.y = y;
+                vector.z = heightMap[x, y] - minHeight;
+                heightMap[x, y] = getRadialHeightAt(vector);
+                if (newMinHeight > heightMap[x, y]) newMinHeight = heightMap[x, y];
+                if (newMaxHeight < heightMap[x, y]) newMaxHeight = heightMap[x, y];
             }
         }
-        // Height difference ratio
-        max = (max - min) / (MaxHeight - MinHeight);
-        MinHeight *= max;
-        MaxHeight *= max;
-        for (int y = 0; y < Length; ++y)
-        {
-            vectorIndex.y = y;
-            for (int x = 0; x < Width; ++x)
-            {
-                vectorIndex.x = x;
-                HeightMap[x, y] *= max;
-                vectorIndex.z = HeightMap[x, y];
-            }
-        }
+
+        minHeight = newMinHeight;
+        maxHeight = newMaxHeight;
+        return newMaxHeight - newMinHeight;
     }
 
-    private float radial(float r1, float r2, float cx, float cy, Vector3 vector)
+    private float getRadialHeightAt(Vector3 vector)
     {
-        float ret = 1 - (Mathf.Sqrt(Mathf.Pow((cx - vector.x) / r1, 2) + Mathf.Pow((cy - vector.y) / r1, 2)));
-        if (r1 > 0 && ret > 0) ret = Mathf.Max(-1, -ret) * 2;
-        else ret = 0;
-        ret += Mathf.Max(-1, (1 - Mathf.Sqrt(Mathf.Pow((cx - vector.x) / r2, 2) + Mathf.Pow((cy - vector.y) / r2, 2))));
-        return vector.z * ret;
+        // Center is 0
+        float innerFilter = 0;
+        if (RadiusInner > 0)
+        {
+            innerFilter = Mathf.Sqrt(Mathf.Pow((RadiusCenter.x - vector.x) / RadiusInner, 2) + Mathf.Pow((RadiusCenter.y - vector.y) / RadiusInner, 2));
+            innerFilter = Mathf.Clamp(innerFilter, 0, 1);
+        }
+        // Center is 1
+        float outerFilter = 0;
+        if (RadiusOuter > 0)
+        {
+            outerFilter = 1 - Mathf.Sqrt(Mathf.Pow((RadiusCenter.x - vector.x) / RadiusOuter, 2) + Mathf.Pow((RadiusCenter.y - vector.y) / RadiusOuter, 2));
+            outerFilter = Mathf.Clamp(outerFilter, 0, 1);
+        }
+        return vector.z * (innerFilter * outerFilter);
     }
 
     private void absorbAt(Vector3 vector, ref float water)
@@ -111,18 +260,30 @@ class TerrainGenerator : Generator
             (int)vector.y,
             (int)vector.z
             );
+        if (vectorInt.z == Height)
+        {
+            --vectorInt.z; // Top of the map, out of bounds of array
+        }
         float waterTransferCapacty = water * absorptionRate / 4,
-            remainingCapacity, transferCapacity;
+            remainingCapacity, transferCapacity,
+            tileAbsorptionCapacity;
         for (int x = vectorInt.x; x < vectorInt.x + 2; ++x)
         {
             for (int y = vectorInt.y; y < vectorInt.y + 2; ++y)
             {
-                if (WetnessMap[x, y] < AbsorptionCapacity)
+                //tileAbsorptionCapacity = WorldMap[x, y, vectorInt.z] * AbsorptionCapacity;
+                tileAbsorptionCapacity = AbsorptionCapacity;
+                if (tileAbsorptionCapacity > 0 && WetnessMap[x, y, vectorInt.z] < tileAbsorptionCapacity)
                 {
-                    remainingCapacity = Mathf.Max(0, AbsorptionCapacity - WetnessMap[x, y]);
+                    remainingCapacity = Mathf.Max(0, tileAbsorptionCapacity - WetnessMap[x, y, vectorInt.z]);
                     transferCapacity = Mathf.Min(waterTransferCapacty, remainingCapacity);
-                    WetnessMap[x, y] += transferCapacity;
+                    WetnessMap[x, y, vectorInt.z] += transferCapacity;
                     water -= transferCapacity;
+                }
+                else if (WetnessMap[x, y, vectorInt.z] > tileAbsorptionCapacity)
+                {
+                    water += WetnessMap[x, y, vectorInt.z] - tileAbsorptionCapacity;
+                    WetnessMap[x, y, vectorInt.z] = tileAbsorptionCapacity;
                 }
             }
         }
@@ -136,42 +297,42 @@ class TerrainGenerator : Generator
             (int)vector.z
             );
         return new float[2, 2] {
-            { vector.z, HeightMap[vectorInt.x, vectorInt.y + 1] },
-            { HeightMap[vectorInt.x + 1, vectorInt.y], HeightMap[vectorInt.x + 1, vectorInt.y + 1] }
+            { GetFloorAt(vector),                            GetFloorAt(vector + new Vector3Int(0, 1, 0)) },
+            { GetFloorAt(vector + new Vector3Int(1, 0, 0)),  GetFloorAt(vector + new Vector3Int(1, 1, 0)) }
         };
     }
 
-    private void setMovingDirection(float[,] gradient, float directionInertia, ref Vector3 direction)
+    // Has the potential to move in the wall?
+    private void setMovingDirection(float[,] gradient, float DirectionInertia, Vector3 position, ref Vector3 direction)
     {
         int[] directions = new int[2] { -1, 1 };
         float gradientX = gradient[0, 0] + gradient[0, 1] - gradient[1, 0] - gradient[1, 1],
             gradientY = gradient[0, 0] + gradient[1, 0] - gradient[0, 1] - gradient[1, 1];
         direction.Set(
-                (direction.x - gradientX) * directionInertia + gradientX,
-                (direction.y - gradientY) * directionInertia + gradientY,
-                0
-            );
+            // should it be dx + gx?
+            (direction.x - gradientX) * DirectionInertia + gradientX,
+            (direction.y - gradientY) * DirectionInertia + gradientY,
+            0 // 2D gradient good enough for grounded z movement
+        );
 
-        float magnitude = Mathf.Sqrt(direction.x * direction.x + direction.y * direction.y + direction.z * direction.z);
+        float magnitude = direction.magnitude;
         if (magnitude <= Mathf.Epsilon)
         {
             // Not moving - pick random direction
             direction.x = directions[Random.Range(0, 2)];
             direction.y = directions[Random.Range(0, 2)];
+            direction.z = 0;
         }
         else
         {
-            direction.x /= magnitude;
-            direction.y /= magnitude;
-            direction.z /= magnitude;
+            direction /= magnitude;
         }
     }
 
     /// <summary>
-    /// Simulates erosion on terrain
+    /// http://ranmantaru.com/blog/2011/10/08/water-erosion-on-heightmap-terrain/
     /// </summary>
-    public void DropletErosion(float directionInertia, float sedimentDeposit, float minSlope, float sedimentCapacity,
-        float depositionSpeed, float erosionSpeed, float evaporationSpeed)
+    public void DropletErosion()
     {
         // Constants
         const float gravityX2 = 20 * 2;
@@ -192,11 +353,11 @@ class TerrainGenerator : Generator
         {
             // Droplet location
             position.Set(
-                Random.Range(0, Width),
-                Random.Range(0, Length),
-                0
+                Random.Range(0, Width - 1),
+                Random.Range(0, Length - 1),
+                Height - 1
             );
-            position.z = HeightMap[(int)position.x, (int)position.y];
+            position.z = GetFloorBelow(position);
 
             // Reset tracking parameters
             sediment = 0;
@@ -204,11 +365,6 @@ class TerrainGenerator : Generator
             water = 1;
 
             // Neighbour position.z values
-            if (position.x + 1 >= Width || position.y + 1 >= Length)
-            {
-                --dropletIndex;
-                continue;
-            }
             gradient = getGradient(position);
 
             // Moving droplet
@@ -218,10 +374,11 @@ class TerrainGenerator : Generator
                 absorbAt(position, ref water);
 
                 // Droplet moves downhill with inertia
-                setMovingDirection(gradient, directionInertia, ref direction);
+                setMovingDirection(gradient, DirectionInertia, position, ref direction);
 
                 // Next position
                 nextPosition = position + direction;
+                nextPosition.z = Mathf.Max(0, nextPosition.z);
                 if (Mathf.FloorToInt(nextPosition.x) < 0 || Mathf.FloorToInt(nextPosition.x) + 1 >= Width || Mathf.FloorToInt(nextPosition.y) < 0 || Mathf.FloorToInt(nextPosition.y) + 1 >= Length) break; // Stop droplet if off map
 
                 // Gradient modifiers
@@ -231,13 +388,21 @@ class TerrainGenerator : Generator
                 if (nextPositionRemainder.y < 0) nextPositionRemainder.y = 0;
 
                 // Deposited height of new point
-                gradient = getGradient(new Vector3(nextPosition.x, nextPosition.y, HeightMap[Mathf.FloorToInt(nextPosition.x), Mathf.FloorToInt(nextPosition.y)]));
-                nextPosition.z = (gradient[0, 0] * (1 - nextPositionRemainder.x) + gradient[1, 0] * nextPositionRemainder.x) * (1 - nextPositionRemainder.y) + (gradient[0, 1] * (1 - nextPositionRemainder.x) + gradient[1, 1] * nextPositionRemainder.x) * nextPositionRemainder.y;
+                gradient = getGradient(new Vector3(nextPosition.x, nextPosition.y, GetFloorAt(nextPosition)));
+                nextPosition.z = (
+                        gradient[0, 0] * (1 - nextPositionRemainder.x)
+                        + gradient[1, 0] * nextPositionRemainder.x
+                    ) * (1 - nextPositionRemainder.y)
+                    + (
+                        gradient[0, 1] * (1 - nextPositionRemainder.x)
+                        + gradient[1, 1] * nextPositionRemainder.x
+                    ) * nextPositionRemainder.y;
+                nextPosition.z = Mathf.Max(0, nextPosition.z);
 
                 // If higher than current, try to deposit sediment up to neighbour height
                 if (nextPosition.z >= position.z)
                 {
-                    sedimentCount = (nextPosition.z - position.z) + sedimentDeposit;
+                    sedimentCount = (nextPosition.z - position.z) + SedimentDeposit;
                     if (sedimentCount >= sediment)
                     {
                         // Deposit all sediment and stop
@@ -257,19 +422,19 @@ class TerrainGenerator : Generator
                     position.y,
                     position.z - nextPosition.z
                     );
-                sedimentCount = sediment - Mathf.Max(transport.z, minSlope) * speed * water * sedimentCapacity;
+                sedimentCount = sediment - Mathf.Max(transport.z, MinSlope) * speed * water * SedimentCapacity;
 
                 // Deposit/erode
                 if (sedimentCount >= 0)
                 {
-                    sedimentCount *= depositionSpeed;
+                    sedimentCount *= DepositionSpeed;
                     deposit(sedimentCount, positionRemainder, ref transport);
                     sediment -= sedimentCount;
                 }
                 else
                 {
                     // Don't erode more than transport.z
-                    sedimentCount *= -erosionSpeed;
+                    sedimentCount *= -ErosionSpeed;
                     sedimentCount = Mathf.Min(sedimentCount, transport.z * 0.99f);
                     float wi;
 
@@ -296,7 +461,7 @@ class TerrainGenerator : Generator
 
                 // Update water
                 speed = Mathf.Sqrt(speed * speed + gravityX2 * transport.z);
-                water *= 1 - evaporationSpeed;
+                water *= 1 - EvaporationSpeed;
 
                 // Move to neighbour
                 position = nextPosition;
@@ -305,24 +470,50 @@ class TerrainGenerator : Generator
         }
     }
 
-    private void depositAt(Vector3Int vector, float w, float deltaSediment)
-    {
-        float delta = w * deltaSediment;
-        erosionMap[vector.x, vector.y] += delta;
-        HeightMap[vector.x, vector.y] += delta;
-    }
-
-    private void deposit(float deltaSediment, Vector3 vectorRemainder, ref Vector3 vector)
+    private void depositAt(Vector3 vector, float w, float deltaSediment)
     {
         Vector3Int vectorInt = new Vector3Int(
             (int)vector.x,
             (int)vector.y,
             (int)vector.z
             );
-        depositAt(vectorInt, (1 - vectorRemainder.x) * (1 - vectorRemainder.y), deltaSediment);
-        if (vectorInt.x + 1 < Width) depositAt(vectorInt + new Vector3Int(1, 0, 0), vectorRemainder.x * (1 - vectorRemainder.y), deltaSediment);
-        if (vectorInt.y + 1 < Length) depositAt(vectorInt + new Vector3Int(0, 1, 0), (1 - vectorRemainder.x) * vectorRemainder.y, deltaSediment);
-        if (vectorInt.x + 1 < Width && vectorInt.y + 1 < Length) depositAt(vectorInt + new Vector3Int(1, 1, 0), vectorRemainder.x * vectorRemainder.y, deltaSediment);
+        int floor = (int)GetFloorAt(vector);
+        float transport, fillPercent;
+
+        for (float delta = w * deltaSediment; delta > 0; floor = (int)GetFloorAt(vector))
+        {
+            if (floor == Height)
+            {
+                Debug.LogWarning("Failed to deposit at " + vector + ": reached the top of the map " + floor + "/" + Height);
+                break;
+            }
+            fillPercent = WorldMap[vectorInt.x, vectorInt.y, floor];
+            transport = Mathf.Min(delta, 1 - fillPercent);
+            delta -= transport;
+            erosionMap[vectorInt.x, vectorInt.y, floor] += transport;
+            WorldMap[vectorInt.x, vectorInt.y, floor] += transport;
+            if (transport > 0) vector.z += transport;
+            else ++vector.z;
+            break;
+        }
+
+    }
+
+    private void deposit(float deltaSediment, Vector3 vectorRemainder, ref Vector3 vector)
+    {
+        if (deltaSediment < 0)
+        {
+            Debug.LogError("Depositing negative value " + deltaSediment + " at " + vector);
+        }
+        Vector3Int vectorInt = new Vector3Int(
+            (int)vector.x,
+            (int)vector.y,
+            (int)vector.z
+            );
+        depositAt(vector, (1 - vectorRemainder.x) * (1 - vectorRemainder.y), deltaSediment);
+        if (vectorInt.x + 1 < Width) depositAt(vector + new Vector3Int(1, 0, 0), vectorRemainder.x * (1 - vectorRemainder.y), deltaSediment);
+        if (vectorInt.y + 1 < Length) depositAt(vector + new Vector3Int(0, 1, 0), (1 - vectorRemainder.x) * vectorRemainder.y, deltaSediment);
+        if (vectorInt.x + 1 < Width && vectorInt.y + 1 < Length) depositAt(vector + new Vector3Int(1, 1, 0), vectorRemainder.x * vectorRemainder.y, deltaSediment);
         vector.z += deltaSediment;
     }
 
@@ -334,9 +525,9 @@ class TerrainGenerator : Generator
             (int)vector.z
             );
         float delta = ds * w;
-        float temp = HeightMap[vectorInt.x, vectorInt.y] -= delta;
+        WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] = Mathf.Max(0, WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] - delta);
         float r = vector.x;
-        float d = erosionMap[vectorInt.x, vectorInt.y];
+        float d = erosionMap[vectorInt.x, vectorInt.y, vectorInt.z];
         if (delta <= d) d -= delta;
         else
         {
@@ -345,13 +536,13 @@ class TerrainGenerator : Generator
             vector.x = Mathf.RoundToInt(r);
             if (vector.x < 0 || vector.x >= Width) return;
         }
-        erosionMap[vectorInt.x, vectorInt.y] = d;
+        erosionMap[vectorInt.x, vectorInt.y, vectorInt.z] = d;
     }
 
     /// Note: http://libnoise.sourceforge.net/examples/worms/index.html
-    public void GenerateCave(int x, int y, int z, int caveLength, float twistiness, int radius, float inverseFrequency, float lacunarity, float gain, float amplitude, int octaves, float scale, float radiusVarianceScale = 0)
+    public void GenerateCave(int x, int y, int z)
     {
-        float speed = radius - 1;
+        float speed = CaveRadius - 1;
         if (speed < 1) speed = 1;
         float lateralSpeed = 10f;
         Vector3 speedMod = new Vector3(1, 1, 0.5f);
@@ -367,15 +558,16 @@ class TerrainGenerator : Generator
             Random.Range(0, Height)
             );
 
-        Vector3 headNoisePos = new Vector3(x, y, z - 10);
-        Vector3 headScreenPos = new Vector3(x, y, z - 10);
-        Vector2Int headScreenPosInt = new Vector2Int();
+        Vector3 headNoisePos = new Vector3(x, y, z);
+        Vector3 headScreenPos = new Vector3(x, y, z);
+        Vector3Int headScreenPosInt = new Vector3Int();
 
-        for (int curSegment = 0; curSegment < caveLength; ++curSegment)
+        float floor;
+        for (int curSegment = 0; curSegment < CaveSegmentLength; ++curSegment)
         {
             // The angle of the head segment is used to determine the direction the worm
             // moves.  The worm moves in the opposite direction.
-            noiseValue = wormNoise.DomainWarp(headNoisePos.x + curSegment * twistiness, headNoisePos.y, headNoisePos.z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency);
+            noiseValue = caveNoise.DomainWarp(headNoisePos.x + curSegment * CaveTwistiness, headNoisePos.y, headNoisePos.z, Octaves, Lacunarity, Gain, Amplitude, 1 / InverseFrequency);
             headOffset.Set(
                     Mathf.Cos(noiseValue * 2 * Mathf.PI) * speed,
                     Mathf.Sin(noiseValue * 2 * Mathf.PI) * speed,
@@ -399,41 +591,41 @@ class TerrainGenerator : Generator
             // escape.  Horrible, horrible freedom!
             if (headScreenPos.x > Width || headScreenPos.x < 0) continue;
             if (headScreenPos.y > Length || headScreenPos.y < 0) continue;
+            if (headScreenPos.z > Height || headScreenPos.z < 0) continue;
             headScreenPos.x = Mathf.Clamp(headScreenPos.x, 0, Width - 1);
             headScreenPos.y = Mathf.Clamp(headScreenPos.y, 0, Length - 1);
 
             headScreenPosInt.Set(
                 (int)headScreenPos.x,
-                (int)headScreenPos.y
+                (int)headScreenPos.y,
+                (int)headScreenPos.z
                 );
 
-            variedRadius = radius;
+            variedRadius = CaveRadius;
 
-            if (radiusVarianceScale != 0)
+            if (CaveRadiusVarianceScale != 0)
             {
-                noiseValue = wormNoise.DomainWarp((headNoisePos.x + radiusVarianceOffset.x) + curSegment * twistiness, headNoisePos.y + radiusVarianceOffset.y, headNoisePos.z + radiusVarianceOffset.z, octaves, lacunarity, gain, amplitude, 1 / inverseFrequency);
+                noiseValue = caveNoise.DomainWarp((headNoisePos.x + radiusVarianceOffset.x) + curSegment * CaveTwistiness, headNoisePos.y + radiusVarianceOffset.y, headNoisePos.z + radiusVarianceOffset.z, Octaves, Lacunarity, Gain, Amplitude, 1 / InverseFrequency);
                 if (variedRadius == 0)
                 {
-                    variedRadius = (0.5f - noiseValue) * radiusVarianceScale;
+                    variedRadius = (0.5f - noiseValue) * CaveRadiusVarianceScale;
                 }
                 else
                 {
-                    variedRadius += radius * (0.5f - noiseValue) * radiusVarianceScale;
+                    variedRadius += CaveRadius * (0.5f - noiseValue) * CaveRadiusVarianceScale;
                 }
             }
 
             // Remove land at head of worm
             if (variedRadius <= 0)
             {
-                if (headScreenPos.z > HeightMap[headScreenPosInt.x, headScreenPosInt.y]) continue;
-                HeightMap[headScreenPosInt.x, headScreenPosInt.y] = headScreenPos.z;
+                WorldMap[headScreenPosInt.x, headScreenPosInt.y, headScreenPosInt.z] = 0;
             }
             else
             {
                 if (variedRadius < 1)
                 {
-                    if (headScreenPos.z < HeightMap[headScreenPosInt.x, headScreenPosInt.y])
-                        HeightMap[headScreenPosInt.x, headScreenPosInt.y] = headScreenPos.z;
+                    WorldMap[headScreenPosInt.x, headScreenPosInt.y, headScreenPosInt.z] = 0;
                     variedRadiusInt = 0;
                 }
                 // Thiccness of worm
@@ -448,26 +640,28 @@ class TerrainGenerator : Generator
                             if (headScreenPosInt.y + j >= Length || headScreenPosInt.y + j < 0) continue;
                             for (int k = -variedRadiusInt; k < variedRadiusInt; ++k)
                             {
-                                if (i * i + j * j + k * k <= variedRadius * variedRadius
-                                    && headScreenPos.z + k < HeightMap[headScreenPosInt.x + i, headScreenPosInt.y + j])
+                                if (headScreenPosInt.z + k >= Height || headScreenPosInt.z + k <= 0) continue; // 0 is always ground
+                                if (i * i + j * j + k * k <= variedRadius * variedRadius) // Inside sphere
                                 {
-                                    HeightMap[headScreenPosInt.x + i, headScreenPosInt.y + j] = headScreenPos.z + k;
+                                    WorldMap[headScreenPosInt.x + i, headScreenPosInt.y + j, headScreenPosInt.z + k] = 0;
+                                    floor = GetFloorAt(headScreenPosInt + new Vector3(i, j, k));
+                                    if (floor < MinHeight)
+                                    {
+                                        MinHeight = floor;
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // Move to end of radius
-                speed = (radius - variedRadiusInt) - 1;
+                // Move to end of CaveRadius
+                speed = (CaveRadius - variedRadiusInt) - 1;
                 if (speed < 1)
                 {
                     speed = 1;
                 }
             }
-
-            if (HeightMap[headScreenPosInt.x, headScreenPosInt.y] < MinHeight)
-                MinHeight = HeightMap[headScreenPosInt.x, headScreenPosInt.y];
         }
     }
 
@@ -477,13 +671,13 @@ class TerrainGenerator : Generator
     public override void Reset()
     {
         base.Reset();
-        terrainNoise.ResetGradientArray();
-        wormNoise.ResetGradientArray();
-        HeightMap = new float[Width, Length];
-    }
-
-    private int costFunction(Vector3 movementVector)
-    {
-        return Mathf.RoundToInt(movementVector.z > 0 ? 999 : movementVector.z + Mathf.Abs(movementVector.y) + Mathf.Abs(movementVector.x));
+        if (heightMapNoise != null)
+        {
+            heightMapNoise.ResetGradientArray();
+        }
+        if (caveNoise != null)
+        {
+            caveNoise.ResetGradientArray();
+        }
     }
 }

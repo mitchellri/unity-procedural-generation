@@ -14,11 +14,20 @@ public class TilemapGenerator : MonoBehaviour
     [Header("Map")]
     public int Width;
     public int Length;
-    public int Height;
+    public int SkyHeight;
+    public int UndergroundHeight;
     public float WaterLevel;
     public float SnowLevel;
     public bool Flood = true;
     public bool Radial = false;
+    [Range(0, 1)]
+    public float RadiusCenterX = 0.5f;
+    [Range(0, 1)]
+    public float RadiusCenterY = 0.5f;
+    [Range(0, 1)]
+    public float RadiusInner = 0.25f;
+    [Range(0, 1)]
+    public float RadiusOuter = 0.5f;
 
     [Header("Noise")]
     [Tooltip("Smoothness of terrain.")]
@@ -36,6 +45,7 @@ public class TilemapGenerator : MonoBehaviour
     public float Gain = 0.5f;
     [Tooltip("Noise multiplier")]
     public float Scale = 10;
+    public bool Seamless = false;
     public int PeriodX = 0;
     public int PeriodY = 0;
     public int PeriodZ = 0;
@@ -67,18 +77,18 @@ public class TilemapGenerator : MonoBehaviour
     public float EvaporationSpeed = .001f;
 
     [Header("Caves")]
-    public int NumCaves = 0;
-    public int SegmentLength = 50;
-    public float Twistiness = 10;
-    public int Radius = 3;
-    public float RadiusVarianceScale = 0;
+    public int CaveCount = 0;
+    public int CaveSegmentLength = 50;
+    public float CaveTwistiness = 10;
+    public int CaveRadius = 3;
+    public float CaveRadiusVarianceScale = 0;
 
     [Header("Development")]
     public bool RegenerateLoop = false;
     public bool ShowWetness = false;
-    public int Z;
 
     // Private members
+    private int Z = -1;
     private TerrainGenerator terrainGenerator;
     private WaterGenerator waterGenerator;
 
@@ -86,8 +96,8 @@ public class TilemapGenerator : MonoBehaviour
     void Start()
     {
         Random.InitState(Seed.GetHashCode());
-        terrainGenerator = new TerrainGenerator(Width, Length, Height);
-        waterGenerator = new WaterGenerator(Width, Length, Height);
+        terrainGenerator = new TerrainGenerator();
+        waterGenerator = new WaterGenerator(terrainGenerator);
         Refresh();
     }
 
@@ -99,37 +109,48 @@ public class TilemapGenerator : MonoBehaviour
         else if (Input.GetKeyUp(KeyCode.Space)) Regenerate();
         if (Input.GetKey(KeyCode.Equals))
         {
-            Z += 1;
-            Refresh();
+            if (Z + 1 < terrainGenerator.Height)
+            {
+                Z += 1;
+                draw();
+            }
         }
         else if (Input.GetKey(KeyCode.Minus))
         {
-            Z -= 1;
-            Refresh();
+            if (Z - 1 >= terrainGenerator.MinHeight)
+            {
+                Z -= 1;
+                draw();
+            }
         }
-        if (Input.GetKey(KeyCode.Q))
+        /*if (Input.GetKey(KeyCode.Q))
         {
-            SegmentLength -= 1;
+            CaveSegmentLength -= 1;
             Refresh();
         }
         else if (Input.GetKey(KeyCode.E))
         {
-            SegmentLength += 1;
+            CaveSegmentLength += 1;
             Refresh();
-        }
+        }*/
         if (Input.GetMouseButtonUp(0))
         {
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3 coordinate = WorldMap.WorldToCell(mouseWorldPos);
-            coordinate.z = waterGenerator.HeightMap[(int)coordinate.x, (int)coordinate.y];
+            coordinate.z = Z;
+            coordinate.z = waterGenerator.GetFloorAt(coordinate);
             Debug.Log("Clicked <color=blue><b>water</b></color> at <b>" + coordinate + "</b>");
         }
         if (Input.GetMouseButtonUp(1))
         {
             Vector3 mouseWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             Vector3 coordinate = WorldMap.WorldToCell(mouseWorldPos);
-            coordinate.z = terrainGenerator.HeightMap[(int)coordinate.x, (int)coordinate.y];
-            Debug.Log("Clicked <color=green><b>terrain</b></color> at <b>" + coordinate + "</b> with <color=blue>wetness</color> " + (terrainGenerator.WetnessMap[(int)coordinate.x, (int)coordinate.y] * 100 / terrainGenerator.AbsorptionCapacity) + "%");
+            coordinate.z = Z;
+            coordinate.z = terrainGenerator.GetFloorAt(coordinate);
+            if (coordinate.z == terrainGenerator.Height) coordinate.z = terrainGenerator.Height - 1;
+            Debug.Log("Clicked <color=green><b>terrain</b></color> at <b>" + coordinate
+                + "</b> with <color=blue>wetness</color> " + (terrainGenerator.WetnessMap[(int)coordinate.x, (int)coordinate.y, (int)coordinate.z] * 100 / terrainGenerator.AbsorptionCapacity) + "%"
+                + "and <color=green><b>fill percent</b></color> of " + (terrainGenerator.WorldMap[(int)coordinate.x, (int)coordinate.y, (int)coordinate.z] * 100) + "%");
         }
     }
 
@@ -159,31 +180,65 @@ public class TilemapGenerator : MonoBehaviour
 
     private void generate()
     {
+        Debug.Log("Generating new <b>map</b>");
+
         // Generate terrain
         var time = Time.realtimeSinceStartup;
-        terrainGenerator.GenerateTerrain(InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, PeriodX, PeriodY, PeriodZ, Z);
-        if (Radial) terrainGenerator.Radial(Length / 4, Length / 2, Width / 2, Length / 2);
+        terrainGenerator.Width = Width;
+        terrainGenerator.Length = Length;
+        terrainGenerator.SkyHeight = SkyHeight;
+        terrainGenerator.UndergroundHeight = UndergroundHeight;
+        terrainGenerator.InverseFrequency = InverseFrequency;
+        terrainGenerator.Lacunarity = Lacunarity;
+        terrainGenerator.Gain = Gain;
+        terrainGenerator.Amplitude = Amplitude;
+        terrainGenerator.Octaves = Octaves;
+        terrainGenerator.Scale = Scale;
+        terrainGenerator.Period.Set(PeriodX, PeriodY, PeriodZ);
+        terrainGenerator.RadiusInner = Length * RadiusInner;
+        terrainGenerator.RadiusOuter = Length * RadiusOuter;
+        terrainGenerator.RadiusCenter.Set(Mathf.RoundToInt(Width * RadiusCenterX), Mathf.RoundToInt(Length * RadiusCenterX));
+        terrainGenerator.GenerateTerrain(Seamless, Radial);
+        Z = terrainGenerator.Height - 1;
+
+        // Generate caves
+        terrainGenerator.CaveSegmentLength = CaveSegmentLength;
+        terrainGenerator.CaveTwistiness = CaveTwistiness;
+        terrainGenerator.CaveRadius = CaveRadius;
+        terrainGenerator.CaveRadiusVarianceScale = CaveRadiusVarianceScale;
         // Pos variables
         int x, y;
-        x = Width / 2;
-        y = Length / 2;
-        for (int curCave = 0; curCave < NumCaves; ++curCave)
+        for (int curCave = 0; curCave < CaveCount; ++curCave)
         {
-            /*x = Random.Range(Width / 4, Width * 3 / 4);
-            y = Random.Range(Length / 4, Length * 3 / 4);*/
-            terrainGenerator.GenerateCave(x, y, (int)terrainGenerator.HeightMap[x, y], SegmentLength, Twistiness, Radius, InverseFrequency, Lacunarity, Gain, Amplitude, Octaves, Scale, RadiusVarianceScale);
             x = Random.Range(0, Width - 1);
             y = Random.Range(0, Length - 1);
+            terrainGenerator.GenerateCave(x, y, (int)terrainGenerator.GetFloorAt(new Vector3(x, y, 0)));
         }
-        if (DropletErosion) terrainGenerator.DropletErosion(DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
+
+        // Erode terrain
+        terrainGenerator.DirectionInertia = DirectionInertia;
+        terrainGenerator.SedimentDeposit = SedimentDeposit;
+        terrainGenerator.MinSlope = MinSlope;
+        terrainGenerator.SedimentCapacity = SedimentCapacity;
+        terrainGenerator.DepositionSpeed = DepositionSpeed;
+        terrainGenerator.ErosionSpeed = ErosionSpeed;
+        terrainGenerator.EvaporationSpeed = EvaporationSpeed;
+        if (DropletErosion) terrainGenerator.DropletErosion();
         Debug.Log("<color=green><b>Terrain</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b> from " + terrainGenerator.MinHeight + " to " + terrainGenerator.MaxHeight);
 
         // Generate rivers
         time = Time.realtimeSinceStartup;
+        waterGenerator.WaterLevel = WaterLevel;
+
         waterGenerator.Reset();
-        if (Flood) waterGenerator.Fill(terrainGenerator, WaterLevel);
+        if (Flood)
+        {
+            waterGenerator.Fill();
+        }
         if (NaturalRivers)
-            waterGenerator.FillExcessWetness(terrainGenerator, WaterLevel, DirectionInertia, SedimentDeposit, MinSlope, SedimentCapacity, DepositionSpeed, ErosionSpeed, EvaporationSpeed);
+        {
+            waterGenerator.FillExcessWetness();
+        }
         Debug.Log("<color=blue><b>Water</b></color> generated in <b>" + (Time.realtimeSinceStartup - time) + "</b>");
         System.GC.Collect();
         return;
@@ -194,7 +249,30 @@ public class TilemapGenerator : MonoBehaviour
         // Clear
         WorldMap.ClearAllTiles();
 
+        float displayHeight = 0;
+        float minHeight = float.MaxValue;
+        float maxHeight = float.MinValue;
+
         Vector3 vector = new Vector3();
+        for (int x = 0; x < Width; ++x)
+        {
+            vector.x = x;
+            for (int y = 0; y < Length; ++y)
+            {
+                vector.y = y;
+                vector.z = terrainGenerator.Height - 1;
+                vector.z = terrainGenerator.GetFloorAt(vector);
+                if (vector.z > maxHeight)
+                {
+                    maxHeight = vector.z;
+                }
+                if (vector.z < minHeight)
+                {
+                    minHeight = vector.z;
+                }
+            }
+        }
+
         Tile tile;
         for (int x = 0; x < Width; ++x)
         {
@@ -202,49 +280,74 @@ public class TilemapGenerator : MonoBehaviour
             for (int y = 0; y < Length; ++y)
             {
                 vector.y = y;
-                vector.z = terrainGenerator.HeightMap[x, y];
-
-                if (vector.z >= SnowLevel) tile = SnowTile;
-                else tile = FloorTile;
-
-                setTile(WorldMap, vector, tile);
-
-                if (waterGenerator.HeightMap[x, y] > float.MinValue)
+                if (terrainGenerator.WorldMap != null)
                 {
-                    vector.z = waterGenerator.HeightMap[x, y];
-                    setTile(WorldMap, vector, WaterTile);
+                    if (Z >= 0)
+                    {
+                        vector.z = Z;
+                    }
+                    else
+                    {
+                        vector.z = terrainGenerator.Height - 1;
+                    }
+                    vector.z = terrainGenerator.GetFloorAt(vector);
+
+                    if (vector.z >= SnowLevel) tile = SnowTile;
+                    else tile = FloorTile;
+
+                    setTile(WorldMap, vector, tile, null, minHeight, maxHeight);
+                }
+
+                if (Z >= 0)
+                {
+                    vector.z = Z;
+                }
+                else
+                {
+                    vector.z = waterGenerator.Height - 1;
+                }
+                vector.z = waterGenerator.GetFloorAt(vector);
+
+                if (vector.z > 0 && (vector.z >= terrainGenerator.GetFloorAt(vector)))
+                {
+                    setTile(WorldMap, vector, WaterTile, null, minHeight, maxHeight);
                 }
             }
         }
     }
 
-    private void setTile(Tilemap tileMap, Vector3 vector, Tile tile, float? colorZ = null)
+    private void setTile(Tilemap tileMap, Vector3 vector, Tile tile, float? colorZ, float minHeight, float maxHeight)
     {
         float brightness;
         float wetness;
-        if (ShowWetness)
+        Vector3Int vectorInt = new Vector3Int(
+                (int)vector.x,
+                (int)vector.y,
+                (int)vector.z
+            );
+        if (ShowWetness && tile != WaterTile)
         {
-            wetness = terrainGenerator.WetnessMap[(int)vector.x, (int)vector.y];
+            wetness = terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z];
             wetness *= 5;
         }
         else wetness = 0;
         // Adjust color
         if (tile == FloorTile)
         {
-            brightness = 1 - (terrainGenerator.MaxHeight - vector.z) / (terrainGenerator.MaxHeight - terrainGenerator.MinHeight);
+            brightness = 1 - (maxHeight - vector.z) / (maxHeight - minHeight);
             tile.color = Color.HSVToRGB(0.25f, 0.8f, brightness - wetness);
         }
         else if (tile == WaterTile)
         {
-            if (waterGenerator.MaxHeight == waterGenerator.MinHeight) brightness = 1.5f - (terrainGenerator.MaxHeight - vector.z) / (terrainGenerator.MaxHeight - WaterLevel);
-            else brightness = 1.5f - (waterGenerator.MaxHeight - vector.z) / (waterGenerator.MaxHeight - Mathf.Max(waterGenerator.MinHeight, terrainGenerator.MinHeight));
+            if (maxHeight == minHeight) brightness = 1.5f - (maxHeight - vector.z) / (maxHeight - WaterLevel);
+            else brightness = 1.5f - (maxHeight - vector.z) / (maxHeight - Mathf.Max(minHeight, minHeight));
             Color color = Color.HSVToRGB(0.55f, 0.75f, brightness);
             color.a = 0.8f;
             tile.color = color;
         }
         else if (tile == SnowTile)
         {
-            brightness = 1 - (terrainGenerator.MaxHeight - vector.z) / (terrainGenerator.MaxHeight - terrainGenerator.MinHeight);
+            brightness = 1 - (maxHeight - vector.z) / (maxHeight - minHeight);
             tile.color = Color.HSVToRGB(0.6f, 0.1f, brightness - wetness);
         }
         tileMap.SetTile(new Vector3Int((int)vector.x, (int)vector.y, (int)vector.z), tile);

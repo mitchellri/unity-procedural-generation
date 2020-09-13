@@ -392,21 +392,28 @@ MonoBehaviour:
   FloorTile: {fileID: 11400000, guid: a99e574493fe4544ab680ec394d6a21d, type: 2}
   WaterTile: {fileID: 11400000, guid: 1763a25001b91bd4eb25dac9ff762d1f, type: 2}
   SnowTile: {fileID: 11400000, guid: 62c998eace2537a498b1df43c1243bb5, type: 2}
-  Width: 64
+  Width: 128
   Length: 64
-  Height: 64
-  WaterLevel: -1
-  SnowLevel: 3
-  Radial: 0
+  SkyHeight: 0
+  UndergroundHeight: 64
+  WaterLevel: 66
+  SnowLevel: 68
+  Flood: 1
+  Radial: 1
+  RadiusCenterX: 0.5
+  RadiusCenterY: 0.5
+  RadiusInner: 0.25
+  RadiusOuter: 0.5
   InverseFrequency: 175
   Octaves: 8
   Lacunarity: 2
   Amplitude: 1.5
   Gain: 0.5
   Scale: 10
+  Seamless: 1
   PeriodX: 2
   PeriodY: 2
-  PeriodZ: 2
+  PeriodZ: 1
   Seed: 
   DropletErosion: 1
   NaturalRivers: 1
@@ -417,6 +424,10 @@ MonoBehaviour:
   DepositionSpeed: 0.02
   ErosionSpeed: 0.9
   EvaporationSpeed: 0.001
+  CaveCount: 1
+  CaveSegmentLength: 250
+  CaveTwistiness: 10
+  CaveRadius: 1
+  CaveRadiusVarianceScale: 1
   RegenerateLoop: 0
   ShowWetness: 0
-  Z: 0
