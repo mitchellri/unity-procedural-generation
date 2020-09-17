@@ -30,12 +30,12 @@ class WaterGenerator : Generator
         }
         else
         {
-            fillLevel = WaterLevel;
+            fillLevel = WaterLevel - 1;
         }
 
         Vector3 vector = new Vector3();
         Vector3Int vectorInt = new Vector3Int();
-        float floor;
+        int floor;
         for (vector.x = 0; vector.x < Width; ++vector.x)
         {
             vectorInt.x = (int)vector.x;
@@ -43,7 +43,7 @@ class WaterGenerator : Generator
             {
                 vectorInt.y = (int)vector.y;
                 vector.z = vectorInt.z = Height - 1;
-                floor = terrainGenerator.GetFloorBelow(vector);
+                floor = (int)terrainGenerator.GetFloorBelow(vector);
                 for (vector.z = fillLevel; vector.z >= floor && floor >= 0; --vector.z)
                 {
                     vectorInt.z = (int)vector.z;
@@ -78,9 +78,9 @@ class WaterGenerator : Generator
                     vectorInt.z = (int)vector.z;
                     if (vectorInt.z < Height
                         && (int)terrainGenerator.GetFloorAt(vector) == vectorInt.z // Vector is on the ground
-                        && terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z] >= terrainGenerator.AbsorptionCapacity)
+                        && terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z] >= terrainGenerator.AbsorptionCapacity
+                        && WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] < terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z])
                     {
-                        vectorInt.z = (int)vector.z;
                         WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] = terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z];
                         waterHeight = vector.z + WorldMap[vectorInt.x, vectorInt.y, vectorInt.z];
                         if (MinHeight > waterHeight) MinHeight = waterHeight;

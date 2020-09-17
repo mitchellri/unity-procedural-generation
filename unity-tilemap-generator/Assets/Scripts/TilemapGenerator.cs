@@ -139,6 +139,7 @@ public class TilemapGenerator : MonoBehaviour
             Vector3 coordinate = WorldMap.WorldToCell(mouseWorldPos);
             coordinate.z = Z;
             coordinate.z = waterGenerator.GetFloorAt(coordinate);
+            coordinate.z += terrainGenerator.WorldMap[(int)coordinate.x, (int)coordinate.y, (int)coordinate.z];
             Debug.Log("Clicked <color=blue><b>water</b></color> at <b>" + coordinate + "</b>");
         }
         if (Input.GetMouseButtonUp(1))
@@ -249,7 +250,6 @@ public class TilemapGenerator : MonoBehaviour
         // Clear
         WorldMap.ClearAllTiles();
 
-        float displayHeight = 0;
         float minHeight = float.MaxValue;
         float maxHeight = float.MinValue;
 
@@ -274,6 +274,7 @@ public class TilemapGenerator : MonoBehaviour
         }
 
         Tile tile;
+        Vector3 terrainVector = new Vector3();
         for (int x = 0; x < Width; ++x)
         {
             vector.x = x;
@@ -296,21 +297,26 @@ public class TilemapGenerator : MonoBehaviour
                     else tile = FloorTile;
 
                     setTile(WorldMap, vector, tile, null, minHeight, maxHeight);
-                }
+                    terrainVector.Set(vector.x, vector.y, vector.z);
 
-                if (Z >= 0)
-                {
-                    vector.z = Z;
-                }
-                else
-                {
-                    vector.z = waterGenerator.Height - 1;
-                }
-                vector.z = waterGenerator.GetFloorAt(vector);
-
-                if (vector.z > 0 && (vector.z >= terrainGenerator.GetFloorAt(vector)))
-                {
-                    setTile(WorldMap, vector, WaterTile, null, minHeight, maxHeight);
+                    if (Z >= 0)
+                    {
+                        vector.z = Z;
+                    }
+                    else
+                    {
+                        vector.z = waterGenerator.Height - 1;
+                    }
+                    vector.z = waterGenerator.GetFloorAt(vector);
+                    if ((vector.x == 31) && (vector.y == 22))
+                    {
+                        float tempasdf = 2;
+                    }
+                    if (vector.z > 0 && (vector.z >= (int)terrainVector.z))
+                    {
+                        vector.z += terrainGenerator.WorldMap[(int)terrainVector.x, (int)terrainVector.y, (int)terrainVector.z]; // Place above land
+                        setTile(WorldMap, vector, WaterTile, null, minHeight, maxHeight);
+                    }
                 }
             }
         }
