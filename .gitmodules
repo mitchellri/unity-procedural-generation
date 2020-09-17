@@ -1,3 +1,0 @@
-[submodule "unity-tilemap-generator/Assets/Packages/Dijkstra.NET"]
-	path = unity-tilemap-generator/Assets/Packages/Dijkstra.NET
-	url = https://github.com/mitchellri/Dijkstra.NET.git

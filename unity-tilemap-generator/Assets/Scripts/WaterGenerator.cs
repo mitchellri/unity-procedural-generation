@@ -1,69 +1,113 @@
 ﻿using UnityEngine;
-using System.Collections.Generic;
 
 class WaterGenerator : Generator
 {
-    public uint[,] idMap { get; private set; }
-    public float MinHeight;
-    public float MaxHeight;
-    public WaterGenerator(int width, int length) : base(width, length)
+    public float WaterLevel;
+
+    private TerrainGenerator terrainGenerator;
+
+    public WaterGenerator(TerrainGenerator terrainGenerator)
     {
-        idMap = new uint[width, length];
-        MinHeight = float.MaxValue;
-        MaxHeight = float.MinValue;
+        this.terrainGenerator = terrainGenerator;
+        WorldMap = new float[terrainGenerator.Width, terrainGenerator.Length, terrainGenerator.Height];
+        Width = terrainGenerator.Width;
+        Length = terrainGenerator.Length;
+        Height = terrainGenerator.Height;
     }
 
     /// <summary>
     /// Fills map with water
     /// </summary>
-    public void Fill(TerrainGenerator terrainGenerator, float fillLevel)
+    public void Fill()
     {
-        if (MinHeight > fillLevel) MinHeight = fillLevel;
-        if (MaxHeight < fillLevel) MaxHeight = fillLevel;
-        var nodes = terrainGenerator.Graph.GetEnumerator();
-        Vector3 vector = new Vector3();
-        while (nodes.MoveNext())
-            if (nodes.Current.Item.z < fillLevel)
-            {
-                vector.Set(nodes.Current.Item.x, nodes.Current.Item.y, fillLevel);
-                idMap[(int)nodes.Current.Item.x, (int)nodes.Current.Item.y] = Graph.AddNode(vector);
-            }
-    }
+        applyConsistency();
 
-    /// <summary>
-    /// Creates rivers where excess wetness exists in terrain
-    /// </summary>
-    public void FillExcessWetness(TerrainGenerator terrainGenerator, float destinationLevel, float directionInertia, float sedimentDeposit,
-        float minSlope, float sedimentCapacity, float depositionSpeed, float erosionSpeed, float evaporationSpeed)
-    {
-        var nodes = terrainGenerator.Graph.GetEnumerator();
-        Vector3 vector = new Vector3();
-        int i, j;
-        while (nodes.MoveNext())
+        float fillLevel;
+        if (WaterLevel >= Height)
         {
-            i = (int)nodes.Current.Item.x;
-            j = (int)nodes.Current.Item.y;
-            if (terrainGenerator.HeightMap[i, j] >= destinationLevel
-                && terrainGenerator.WetnessMap[i, j] > terrainGenerator.AbsorptionCapacity)
+            Debug.LogWarning("WaterLevel higher than map height - filling at maximum height");
+            fillLevel = Height - 1;
+        }
+        else
+        {
+            fillLevel = WaterLevel - 1;
+        }
+
+        Vector3 vector = new Vector3();
+        Vector3Int vectorInt = new Vector3Int();
+        int floor;
+        for (vector.x = 0; vector.x < Width; ++vector.x)
+        {
+            vectorInt.x = (int)vector.x;
+            for (vector.y = 0; vector.y < Length; ++vector.y)
             {
-                vector.Set(i, j, nodes.Current.Item.z + terrainGenerator.WetnessMap[i, j] - terrainGenerator.AbsorptionCapacity);
-                idMap[i, j] = Graph.AddNode(vector);
-                if (MinHeight > vector.z) MinHeight = vector.z;
-                if (MaxHeight < vector.z) MaxHeight = vector.z;
+                vectorInt.y = (int)vector.y;
+                vector.z = vectorInt.z = Height - 1;
+                floor = (int)terrainGenerator.GetFloorBelow(vector);
+                for (vector.z = fillLevel; vector.z >= floor && floor >= 0; --vector.z)
+                {
+                    vectorInt.z = (int)vector.z;
+                    WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] = 1 - terrainGenerator.WorldMap[vectorInt.x, vectorInt.y, vectorInt.z];
+                }
             }
         }
     }
 
     /// <summary>
-    /// Sets graph, obsticals, heightmap to default values
+    /// Creates rivers where excess wetness exists in terrain
     /// </summary>
+    /// <note>
+    /// Fill percent can be more than one
+    /// </note>
+    public void FillExcessWetness()
+    {
+        applyConsistency();
+
+        Vector3 vector = new Vector3();
+        Vector3Int vectorInt = new Vector3Int();
+        float waterHeight;
+        for (vector.x = 0; vector.x < terrainGenerator.Width; ++vector.x)
+        {
+            vectorInt.x = (int)vector.x;
+            for (vector.y = 0; vector.y < terrainGenerator.Length; ++vector.y)
+            {
+                vectorInt.y = (int)vector.y;
+                vector.z = vectorInt.z = Height - 1;
+                for (vector.z = terrainGenerator.GetFloorAt(vector); vector.z >= 0; --vector.z)
+                {
+                    vectorInt.z = (int)vector.z;
+                    if (vectorInt.z < Height
+                        && (int)terrainGenerator.GetFloorAt(vector) == vectorInt.z // Vector is on the ground
+                        && terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z] >= terrainGenerator.AbsorptionCapacity
+                        && WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] < terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z])
+                    {
+                        WorldMap[vectorInt.x, vectorInt.y, vectorInt.z] = terrainGenerator.WetnessMap[vectorInt.x, vectorInt.y, vectorInt.z];
+                        waterHeight = vector.z + WorldMap[vectorInt.x, vectorInt.y, vectorInt.z];
+                        if (MinHeight > waterHeight) MinHeight = waterHeight;
+                        if (MaxHeight < waterHeight) MaxHeight = waterHeight;
+                    }
+                }
+            }
+        }
+    }
+
+    private void applyConsistency()
+    {
+        if (Width != terrainGenerator.Width
+            || Length != terrainGenerator.Length
+            || Height != terrainGenerator.Height)
+        {
+            Debug.LogError("WaterGenerator inconsistent with last reset: Force resetting WaterGenerator");
+            Reset();
+        }
+    }
+
     public override void Reset()
     {
         base.Reset();
-        for (int i = 0; i < idMap.GetLength(0); ++i)
-            for (int j = 0; j < idMap.GetLength(1); ++j)
-                idMap[i, j] = 0;
-        MinHeight = float.MaxValue;
-        MaxHeight = float.MinValue;
+        WorldMap = new float[terrainGenerator.Width, terrainGenerator.Length, terrainGenerator.Height];
+        Width = terrainGenerator.Width;
+        Length = terrainGenerator.Length;
+        Height = terrainGenerator.Height;
     }
 }
