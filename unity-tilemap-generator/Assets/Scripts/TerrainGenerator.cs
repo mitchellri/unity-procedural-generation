@@ -494,7 +494,6 @@ class TerrainGenerator : Generator
             WorldMap[vectorInt.x, vectorInt.y, floor] += transport;
             if (transport > 0) vector.z += transport;
             else ++vector.z;
-            break;
         }
 
     }

@@ -308,10 +308,6 @@ public class TilemapGenerator : MonoBehaviour
                         vector.z = waterGenerator.Height - 1;
                     }
                     vector.z = waterGenerator.GetFloorAt(vector);
-                    if ((vector.x == 31) && (vector.y == 22))
-                    {
-                        float tempasdf = 2;
-                    }
                     if (vector.z > 0 && (vector.z >= (int)terrainVector.z))
                     {
                         vector.z += terrainGenerator.WorldMap[(int)terrainVector.x, (int)terrainVector.y, (int)terrainVector.z]; // Place above land
